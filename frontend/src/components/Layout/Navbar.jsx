@@ -40,7 +40,7 @@ const Navbar = () => {
 
                 <div className="flex flex-col">
                     <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none">
-                        Safar <span className="text-emerald-500">Saar</span>
+                        Apghat<span className="text-emerald-500">Darshak</span>
                     </h1>
                     <div className="flex items-center gap-2 mt-1">
                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">

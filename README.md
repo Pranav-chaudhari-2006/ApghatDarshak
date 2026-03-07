@@ -1,6 +1,6 @@
-# GuardianRoute - Accident Blackspot Detection System 🛡️🚗
+# ApghatDarshak - Accident Blackspot Detection System 🛡️🚗
 
-GuardianRoute is a modern, risk-aware navigation system designed to detect accident-prone road segments (blackspots) in Pune and recommend safer travel routes.
+ApghatDarshak is a modern, risk-aware navigation system designed to detect accident-prone road segments (blackspots) in Pune and recommend safer travel routes.
 
 ## 🚀 Overview
 
