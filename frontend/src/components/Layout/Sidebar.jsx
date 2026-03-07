@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Navigation, MapPin, RefreshCw, Loader2, AlertTriangle,
-    ShieldCheck, Shield, Route, Zap, TrendingDown, Scale,
+    ShieldCheck, Route, Zap, TrendingDown, Scale,
     Clock, Ruler, Star, ChevronRight
 } from 'lucide-react';
 import LocationInput from '../UI/LocationInput';
@@ -108,28 +108,16 @@ const Sidebar = () => {
             {/* ── Main Planner Card ── */}
             <div className="glass-card rounded-[32px] p-6 shadow-2xl relative overflow-hidden">
                 {/* Branding */}
-                <div className="flex items-center gap-4 mb-8">
-                    <motion.div
-                        whileHover={{ scale: 1.05, rotate: 5 }}
-                        className="relative group cursor-pointer"
-                    >
-                        <div className="absolute inset-0 bg-emerald-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                        <div className="relative w-11 h-11 rounded-2xl bg-slate-950 flex items-center justify-center border border-white/10 shadow-2xl">
-                            <Shield className="text-emerald-400" size={22} strokeWidth={2.5} />
-                        </div>
-                    </motion.div>
-
-                    <div className="flex flex-col">
-                        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
-                            Apaghat<span className="text-emerald-500">Darshak</span>
-                        </h1>
-                        <div className="flex items-center gap-2 mt-1">
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-                                <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">Live Monitor</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest hidden sm:block">· Pune Division</span>
-                        </div>
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                        <Navigation size={22} strokeWidth={2.5} />
+                    </div>
+                    <div className="flex-1">
+                        <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">ApaghatDarshak</h1>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Pune Safety System
+                        </p>
                     </div>
                 </div>
 

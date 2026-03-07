@@ -1,7 +1,7 @@
 import React from 'react';
 import Navbar from '../components/Layout/Navbar';
 import Sidebar from '../components/Layout/Sidebar';
-import BottomDrawer from '../components/Layout/BottomDrawer';
+import RightSidebar from '../components/Layout/RightSidebar';
 import MapView from '../components/Map/MapView';
 
 const Dashboard = () => {
@@ -20,8 +20,8 @@ const Dashboard = () => {
                     <MapView />
                 </div>
 
-                {/* Bottom Drawer */}
-                <BottomDrawer />
+                {/* Right Sidebar Console */}
+                <RightSidebar />
             </div>
         </div>
     );
