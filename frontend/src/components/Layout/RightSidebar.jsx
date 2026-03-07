@@ -41,7 +41,7 @@ const RightSidebar = () => {
                 className="pointer-events-auto h-full w-[340px]"
             >
                 {/* Sidebar Container */}
-                <div className="w-full h-full glass-card rounded-[32px] p-6 shadow-2xl flex flex-col gap-6 overflow-y-auto no-scrollbar relative border border-slate-200/50 dark:border-white/10 dark:bg-slate-900/90 bg-white/90">
+                <div className="w-full h-full glass-card rounded-[32px] p-6 shadow-2xl flex flex-col gap-6 overflow-y-auto no-scrollbar relative border border-slate-200/50 dark:border-white/10">
 
                     {/* Header & Close Button */}
                     <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-white/5">
@@ -95,7 +95,7 @@ const RightSidebar = () => {
                         </div>
                         <div className="grid grid-cols-1 gap-2">
                             {LEGEND.map(l => (
-                                <div key={l.label} className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-all border border-transparent hover:border-slate-100 dark:hover:border-white/5 group bg-white/50 dark:bg-transparent">
+                                <div key={l.label} className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-all border border-transparent hover:border-slate-100 dark:hover:border-white/5 group">
                                     <div className="flex items-center gap-3">
                                         <span className="text-lg font-black" style={{ color: l.color }}>{l.symbol}</span>
                                         <div>

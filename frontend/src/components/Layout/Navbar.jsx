@@ -66,25 +66,9 @@ const Navbar = () => {
                 </div>
             </div>
 
-            {/* Action Group */}
+            {/* Action Group removed to force permanent dark mode */}
             <div className="flex items-center gap-3 pointer-events-auto">
-                <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={toggleTheme}
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-xl text-slate-600 dark:text-slate-400 transition-colors"
-                >
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={dark ? 'dark' : 'light'}
-                            initial={{ rotate: -90, opacity: 0 }}
-                            animate={{ rotate: 0, opacity: 1 }}
-                            exit={{ rotate: 90, opacity: 0 }}
-                        >
-                            {dark ? <Sun size={18} /> : <Moon size={18} />}
-                        </motion.div>
-                    </AnimatePresence>
-                </motion.button>
+                <motion.div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-transparent text-slate-400" />
             </div>
         </motion.nav>
     );
