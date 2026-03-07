@@ -23,37 +23,14 @@ const Navbar = () => {
         <motion.nav
             initial={{ y: -100 }}
             animate={{ y: 0 }}
-            className={`fixed top-0 left-0 right-0 h-20 px-8 flex items-center justify-between z-2000 transition-all duration-500 ${scrolled ? 'backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 shadow-2xl' : 'bg-transparent'
+            className={`fixed top-0 left-0 right-0 h-20 px-8 flex items-center justify-between z-2000 transition-all duration-500 pointer-events-none ${scrolled ? 'backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 shadow-2xl pointer-events-auto' : 'bg-transparent'
                 }`}
         >
-            {/* Project Brand */}
-            <div className="flex items-center gap-4">
-                <motion.div
-                    whileHover={{ scale: 1.05, rotate: 5 }}
-                    className="relative group cursor-pointer"
-                >
-                    <div className="absolute inset-0 bg-emerald-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                    <div className="relative w-11 h-11 rounded-2xl bg-slate-950 flex items-center justify-center border border-white/10 shadow-2xl">
-                        <Shield className="text-emerald-400" size={22} strokeWidth={2.5} />
-                    </div>
-                </motion.div>
-
-                <div className="flex flex-col">
-                    <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none">
-                        Apaghat<span className="text-emerald-500">Darshak</span>
-                    </h1>
-                    <div className="flex items-center gap-2 mt-1">
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-                            <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">Live Monitor</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest hidden sm:block">· Pune Division</span>
-                    </div>
-                </div>
-            </div>
+            {/* Spacer for Sidebar to avoid overlap */}
+            <div className="w-[360px] hidden md:block" />
 
             {/* Dynamic Status Dashboard */}
-            <div className="hidden lg:flex items-center gap-10 px-8 py-2 rounded-[24px] bg-slate-50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-white/5">
+            <div className="hidden lg:flex items-center gap-10 px-8 py-2 rounded-[24px] bg-slate-50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-white/5 pointer-events-auto">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center">
                         <Cpu size={14} className="text-blue-500" />
@@ -90,7 +67,7 @@ const Navbar = () => {
             </div>
 
             {/* Action Group */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pointer-events-auto">
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}

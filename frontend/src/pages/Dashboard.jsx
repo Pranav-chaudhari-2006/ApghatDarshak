@@ -20,7 +20,7 @@ const Dashboard = () => {
                     <MapView />
                 </div>
 
-                {/* Right Sidebar Console */}
+                {/* Right Analytics Sidebar */}
                 <RightSidebar />
             </div>
         </div>

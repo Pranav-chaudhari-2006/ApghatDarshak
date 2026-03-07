@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
+/* Toggle dark mode purely via .dark class in Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ─── Shadcn/UI Tokens (Used by mapcn) ──────────────────── */
 :root {
   --background: 0 0% 100%;
@@ -24,6 +27,9 @@
   --input: 214.3 31.8% 91.4%;
   --ring: 161 72% 40%;
   --radius: 0.75rem;
+  
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.5);
 }
 
 .dark {
@@ -46,6 +52,9 @@
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
   --ring: 161 72% 40%;
+
+  --glass-bg: rgba(15, 23, 42, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.1);
 }
 
 /* ─── Global Smoothing ───────────────────────────────────── */

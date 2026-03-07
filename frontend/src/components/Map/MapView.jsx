@@ -116,29 +116,38 @@ const MapView = () => {
                 )}
 
                 {/* Blackspots */}
-                {blackspots.map((spot, i) => (
-                    <MapMarker key={i} longitude={spot.lng} latitude={spot.lat}>
-                        <MarkerContent>
-                            <div className="relative flex items-center justify-center">
-                                <div className="absolute w-10 h-10 bg-rose-500 rounded-full blackspot-pulse opacity-40 animate-ping"></div>
-                                <div className="relative w-4 h-4 bg-rose-600 rounded-full border-2 border-white shadow-lg"></div>
-                            </div>
-                        </MarkerContent>
-                        <MarkerPopup>
-                            <div className="p-1 min-w-[150px]">
-                                <h3 className="font-bold text-rose-600 mb-1 flex items-center gap-1 text-sm">
-                                    ⚠️ Blackspot
-                                </h3>
-                                <p className="text-xs text-gray-600">Risk Score: <b className="text-rose-700">{spot.risk}</b></p>
-                                <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-center">
-                                    <div className="bg-rose-50 p-1 rounded border border-rose-100 font-medium">Fatal<br />{spot.fatal}</div>
-                                    <div className="bg-orange-50 p-1 rounded border border-orange-100 font-medium">Major<br />{spot.major}</div>
-                                    <div className="bg-gray-50 p-1 rounded border border-gray-100 font-medium">Minor<br />{spot.minor}</div>
+                {blackspots.map((spot, i) => {
+                    const isHighDanger = spot.risk > 30;
+                    const ringColor = isHighDanger ? 'bg-rose-500' : 'bg-amber-500';
+                    const dotColor = isHighDanger ? 'bg-rose-600' : 'bg-amber-600';
+                    const titleText = isHighDanger ? '⚠️ High Danger' : '⚠️ Warning';
+                    const titleColor = isHighDanger ? 'text-rose-600' : 'text-amber-600';
+                    const riskColor = isHighDanger ? 'text-rose-700' : 'text-amber-700';
+
+                    return (
+                        <MapMarker key={i} longitude={spot.lng} latitude={spot.lat}>
+                            <MarkerContent>
+                                <div className="relative flex items-center justify-center">
+                                    <div className={`absolute w-10 h-10 ${ringColor} rounded-full blackspot-pulse opacity-40 animate-ping`}></div>
+                                    <div className={`relative w-4 h-4 ${dotColor} rounded-full border-2 border-white shadow-lg`}></div>
                                 </div>
-                            </div>
-                        </MarkerPopup>
-                    </MapMarker>
-                ))}
+                            </MarkerContent>
+                            <MarkerPopup>
+                                <div className="p-1 min-w-[150px]">
+                                    <h3 className={`font-bold ${titleColor} mb-1 flex items-center gap-1 text-sm`}>
+                                        {titleText}
+                                    </h3>
+                                    <p className="text-xs text-gray-600">Risk Score: <b className={riskColor}>{spot.risk}</b></p>
+                                    <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-center">
+                                        <div className="bg-rose-50 p-1 rounded border border-rose-100 font-medium">Fatal<br />{spot.fatal}</div>
+                                        <div className="bg-orange-50 p-1 rounded border border-orange-100 font-medium">Major<br />{spot.major}</div>
+                                        <div className="bg-gray-50 p-1 rounded border border-gray-100 font-medium">Minor<br />{spot.minor}</div>
+                                    </div>
+                                </div>
+                            </MarkerPopup>
+                        </MapMarker>
+                    );
+                })}
             </Map>
         </motion.div>
     );

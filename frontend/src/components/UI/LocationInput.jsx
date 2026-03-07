@@ -91,16 +91,14 @@ const LocationInput = ({ placeholder, icon: Icon, onSelect, value: controlledVal
                     <motion.ul
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-[2000] mt-2 w-full glass-card rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto"
-                        style={{ background: 'rgba(255, 255, 255, 0.98)' }}
+                        className="absolute z-2000 mt-2 w-full bg-white dark:bg-slate-900 glass-card border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto"
                     >
                         {suggestions.map((loc, idx) => (
                             <motion.li
                                 key={loc.placeId || idx}
                                 whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.08)' }}
                                 onClick={() => handleSelect(loc)}
-                                className="flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-gray-50 last:border-none"
+                                className="flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-white/5 last:border-none hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
                             >
                                 <MapPin className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
                                 <div className="flex flex-col">
