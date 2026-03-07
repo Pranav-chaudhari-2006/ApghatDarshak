@@ -1,4 +1,4 @@
-# ApghatDarshak
+# ApaghatDarshak
 ## Accident Blackspot Detection & Risk-Aware Route Analysis
 ### Web Application – Requirements Document (React Version)
 

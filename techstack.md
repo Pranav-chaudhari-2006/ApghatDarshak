@@ -1,4 +1,4 @@
-# ApghatDarshak – Tech Stack
+# ApaghatDarshak – Tech Stack
 
 ---
 

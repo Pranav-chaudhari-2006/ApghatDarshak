@@ -1,6 +1,6 @@
-# ApghatDarshak - Accident Blackspot Detection System 🛡️🚗
+# ApaghatDarshak - Accident Blackspot Detection System 🛡️🚗
 
-ApghatDarshak is a modern, risk-aware navigation system designed to detect accident-prone road segments (blackspots) in Pune and recommend safer travel routes.
+ApaghatDarshak is a modern, risk-aware navigation system designed to detect accident-prone road segments (blackspots) in Pune and recommend safer travel routes.
 
 ## 🚀 Overview
 

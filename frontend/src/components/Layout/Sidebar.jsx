@@ -103,17 +103,17 @@ const Sidebar = () => {
         <motion.div
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="absolute top-6 left-6 w-[360px] z-[1000] flex flex-col gap-4"
+            className="absolute top-6 left-6 w-[360px] z-1000 flex flex-col gap-4"
         >
             {/* ── Main Planner Card ── */}
             <div className="glass-card rounded-[32px] p-6 shadow-2xl relative overflow-hidden">
                 {/* Branding */}
                 <div className="flex items-center gap-3 mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                    <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
                         <Navigation size={22} strokeWidth={2.5} />
                     </div>
                     <div className="flex-1">
-                        <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">Safar Saar</h1>
+                        <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">ApaghatDarshak</h1>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                             Pune Safety System
@@ -150,8 +150,8 @@ const Sidebar = () => {
                                 key={m.id}
                                 onClick={() => setMode(m.id)}
                                 className={`flex flex-col items-center gap-1.5 p-3.5 rounded-2xl transition-all border-2 ${active
-                                        ? 'bg-white dark:bg-slate-800 shadow-xl border-emerald-500/10'
-                                        : 'bg-transparent border-transparent opacity-40 grayscale hover:opacity-100'
+                                    ? 'bg-white dark:bg-slate-800 shadow-xl border-emerald-500/10'
+                                    : 'bg-transparent border-transparent opacity-40 grayscale hover:opacity-100'
                                     }`}
                                 style={{ borderColor: active ? m.color : 'transparent' }}
                             >
