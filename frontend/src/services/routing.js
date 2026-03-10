@@ -13,7 +13,14 @@ const API_KEY = import.meta.env.VITE_ORS_API_KEY;
  * @param {string} preference - 'recommended' | 'fastest' | 'shortest'
  * @returns route geometry (array of [lat, lng] pairs for Leaflet), distance in km, duration in mins
  */
-export async function getRoute(origin, destination, preference = 'recommended') {
+export async function getRoute(origin, destination, preference = 'recommended', vehicle = 'car') {
+    const vMap = {
+        car: 'driving-car',
+        bike: 'cycling-regular',
+        walk: 'foot-walking'
+    };
+    const profile = vMap[vehicle] || 'driving-car';
+
     const body = {
         coordinates: [origin, destination],
         preference,
@@ -24,9 +31,9 @@ export async function getRoute(origin, destination, preference = 'recommended') 
         instructions: false,
     };
 
-    console.log("ORS Request:", body);
+    console.log("ORS Request:", profile, body);
 
-    const response = await fetch(`${ORS_BASE}/directions/driving-car/geojson`, {
+    const response = await fetch(`${ORS_BASE}/directions/${profile}/geojson`, {
         method: 'POST',
         headers: {
             'Authorization': API_KEY,

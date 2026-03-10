@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Activity, Moon, Sun, AlertCircle, Cpu, Radio } from 'lucide-react';
 
 const Navbar = () => {
-    const [dark, setDark] = useState(false);
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
@@ -13,11 +12,6 @@ const Navbar = () => {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
-
-    const toggleTheme = () => {
-        setDark((d) => !d);
-        document.documentElement.classList.toggle('dark');
-    };
 
     return (
         <motion.nav

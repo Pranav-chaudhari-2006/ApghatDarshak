@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Map,
     MapMarker,
     MarkerContent,
     MarkerPopup,
+    MarkerTooltip,
     MapRoute,
     MapControls,
     useMap
@@ -14,28 +15,67 @@ import useRouteStore from '../../store/useRouteStore';
 const PUNE_CENTER = [73.8567, 18.5204]; // [lng, lat] for MapLibre
 
 const ROUTE_STYLES = {
-    shortest: { color: '#3B82F6', width: 6, dashArray: [2, 2] },
-    safest: { color: '#10B981', width: 8, dashArray: null },
-    balanced: { color: '#F59E0B', width: 7, dashArray: [1, 1] },
+    shortest: { label: 'Shortest Route', dashArray: [2, 2] },
+    safest: { label: 'Safest Route', dashArray: null },
+    balanced: { label: 'Balanced Route', dashArray: [1, 1] },
 };
 
-// Helper to fit bounds in MapLibre
+const PRIMARY_COLOR = '#10B981'; // Emerald Green
+const SECONDARY_COLOR = '#FDBA74'; // Light Orange
+
+/**
+ * Determine blackspot color based on dominant accident severity:
+ *   🔴 RED    → fatal_count > 0
+ *   🟠 ORANGE → major_count > 0 (no fatals)
+ *   🟡 YELLOW → minor only
+ */
+function getBlackspotStyle(spot) {
+    const fatal = spot.fatal || 0;
+    const major = spot.major || 0;
+
+    if (fatal > 0) {
+        return {
+            ring: 'bg-red-500',
+            dot: 'bg-red-600',
+            glow: '#ef4444',
+            label: '🔴 Fatal Zone',
+            labelColor: 'text-red-600',
+            riskColor: 'text-red-700',
+        };
+    }
+    if (major > 0) {
+        return {
+            ring: 'bg-orange-500',
+            dot: 'bg-orange-600',
+            glow: '#f97316',
+            label: '🟠 Major Risk',
+            labelColor: 'text-orange-600',
+            riskColor: 'text-orange-700',
+        };
+    }
+    return {
+        ring: 'bg-yellow-400',
+        dot: 'bg-yellow-500',
+        glow: '#eab308',
+        label: '🟡 Minor Risk',
+        labelColor: 'text-yellow-600',
+        riskColor: 'text-yellow-700',
+    };
+}
+
+// Helper — fit map bounds to the computed route
 const FitBounds = ({ geometry }) => {
     const { map, isLoaded } = useMap();
 
     useEffect(() => {
         if (isLoaded && map && geometry?.length > 1) {
-            // geometry is [[lat, lng], ...] from store, map.fitBounds needs [lng, lat]
             const bounds = geometry.reduce(
-                (acc, coord) => {
-                    return [
-                        [Math.min(acc[0][0], coord[1]), Math.min(acc[0][1], coord[0])],
-                        [Math.max(acc[1][0], coord[1]), Math.max(acc[1][1], coord[0])]
-                    ];
-                },
+                (acc, coord) => [
+                    [Math.min(acc[0][0], coord[1]), Math.min(acc[0][1], coord[0])],
+                    [Math.max(acc[1][0], coord[1]), Math.max(acc[1][1], coord[0])],
+                ],
                 [[geometry[0][1], geometry[0][0]], [geometry[0][1], geometry[0][0]]]
             );
-
             map.fitBounds(bounds, { padding: 80, duration: 1000 });
         }
     }, [geometry, map, isLoaded]);
@@ -44,50 +84,113 @@ const FitBounds = ({ geometry }) => {
 };
 
 const MapView = () => {
-    const { source, destination, mode, routeResult, blackspots } = useRouteStore();
+    const { source, destination, mode, routeResult, allRoutes, blackspots, setMode } = useRouteStore();
     const routeStyle = ROUTE_STYLES[mode] || ROUTE_STYLES.safest;
+    const [hoveredRoute, setHoveredRoute] = useState(null);
 
-    // Convert route geometry for MapRoute ([lat, lng] -> [lng, lat])
-    const mapRouteCoordinates = routeResult?.geometry?.map(([lat, lng]) => [lng, lat]) || [];
+    // Route is only "active" when we have computed geometry
+    const hasRoute = !!(routeResult?.geometry?.length > 1);
+
+    // Convert geometry from store [lat,lng] → MapLibre [lng,lat]
+    const mapRouteCoords = routeResult?.geometry?.map(([lat, lng]) => [lng, lat]) || [];
+    
+    // Extract alternative routes
+    const secondaryRoutes = ['safest', 'shortest', 'balanced']
+        .filter(m => m !== mode && allRoutes[m]?.geometry?.length > 1)
+        .map(m => ({
+            id: m,
+            style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
+            coords: allRoutes[m].geometry.map(([lat, lng]) => [lng, lat])
+        }));
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full">
-            <Map
-                center={PUNE_CENTER}
-                zoom={12}
-                className="w-full h-full"
-            >
+            <Map center={PUNE_CENTER} zoom={12} className="w-full h-full">
                 <MapControls position="bottom-right" showZoom showLocate showFullscreen />
 
-                {routeResult?.geometry && <FitBounds geometry={routeResult.geometry} />}
+                {/* Auto-fit to route */}
+                {hasRoute && <FitBounds geometry={routeResult.geometry} />}
 
-                {/* Route Rendering */}
-                {mapRouteCoordinates.length > 1 && (
+                {/* ── Secondary Routes ── */}
+                {secondaryRoutes.map(route => (
+                    <MapRoute
+                        key={`secondary-${route.id}`}
+                        id={`secondary-${route.id}`}
+                        coordinates={route.coords}
+                        color={SECONDARY_COLOR}
+                        width={5}
+                        opacity={0.4}
+                        dashArray={route.style.dashArray}
+                        interactive={true}
+                        onClick={() => setMode(route.id)}
+                        onMouseEnter={(e) => {
+                            if (e && e.lngLat) {
+                                setHoveredRoute({
+                                    lng: e.lngLat.lng,
+                                    lat: e.lngLat.lat,
+                                    label: `Alternative: ${route.style.label}`,
+                                    color: SECONDARY_COLOR
+                                });
+                            }
+                        }}
+                        onMouseLeave={() => setHoveredRoute(null)}
+                    />
+                ))}
+
+                {/* ── Main Route Line ── */}
+                {hasRoute && (
                     <>
-                        {/* Glow effect */}
+                        {/* Soft glow underlay */}
                         <MapRoute
-                            coordinates={mapRouteCoordinates}
-                            color={routeStyle.color}
-                            width={routeStyle.width + 4}
+                            id="main-glow"
+                            coordinates={mapRouteCoords}
+                            color={PRIMARY_COLOR}
+                            width={14}
                             opacity={0.2}
                         />
-                        {/* Main route */}
+                        {/* Solid route */}
                         <MapRoute
-                            coordinates={mapRouteCoordinates}
-                            color={routeStyle.color}
-                            width={routeStyle.width}
-                            opacity={0.9}
-                            dashArray={routeStyle.dashArray}
+                            id="main-route"
+                            coordinates={mapRouteCoords}
+                            color={PRIMARY_COLOR}
+                            width={8}
+                            opacity={0.95}
+                            interactive={true}
+                            onMouseEnter={(e) => {
+                                if (e && e.lngLat) {
+                                    setHoveredRoute({
+                                        lng: e.lngLat.lng,
+                                        lat: e.lngLat.lat,
+                                        label: `Primary: ${routeStyle.label}`,
+                                        color: PRIMARY_COLOR
+                                    });
+                                }
+                            }}
+                            onMouseLeave={() => setHoveredRoute(null)}
                         />
                     </>
                 )}
 
-                {/* Markers */}
+                {/* Hover Tag */}
+                {hoveredRoute && (
+                    <MapMarker longitude={hoveredRoute.lng} latitude={hoveredRoute.lat}>
+                        <MarkerContent>
+                            <div 
+                                className="px-3 py-1.5 rounded-lg shadow-xl text-xs font-bold font-outfit text-white whitespace-nowrap -translate-y-8"
+                                style={{ backgroundColor: hoveredRoute.color }}
+                            >
+                                {hoveredRoute.label}
+                            </div>
+                        </MarkerContent>
+                    </MapMarker>
+                )}
+
+                {/* ── Origin Marker ── */}
                 {source && (
                     <MapMarker longitude={source.lng} latitude={source.lat}>
                         <MarkerContent>
                             <div className="flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full border-4 border-white shadow-xl">
-                                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                <div className="w-1.5 h-1.5 bg-white rounded-full" />
                             </div>
                         </MarkerContent>
                         <MarkerPopup>
@@ -99,11 +202,12 @@ const MapView = () => {
                     </MapMarker>
                 )}
 
+                {/* ── Destination Marker ── */}
                 {destination && (
                     <MapMarker longitude={destination.lng} latitude={destination.lat}>
                         <MarkerContent>
                             <div className="flex items-center justify-center w-8 h-8 bg-slate-900 rounded-full border-4 border-white shadow-xl">
-                                <div className="w-2 h-2 bg-emerald-400 rounded-sm rotate-45"></div>
+                                <div className="w-2 h-2 bg-emerald-400 rounded-sm rotate-45" />
                             </div>
                         </MarkerContent>
                         <MarkerPopup>
@@ -115,36 +219,58 @@ const MapView = () => {
                     </MapMarker>
                 )}
 
-                {/* Blackspots */}
+                {/* ── Blackspots — Visible during selection and after route computation ── */}
                 {blackspots.map((spot, i) => {
-                    const isHighDanger = spot.risk > 30;
-                    const ringColor = isHighDanger ? 'bg-rose-500' : 'bg-amber-500';
-                    const dotColor = isHighDanger ? 'bg-rose-600' : 'bg-amber-600';
-                    const titleText = isHighDanger ? '⚠️ High Danger' : '⚠️ Warning';
-                    const titleColor = isHighDanger ? 'text-rose-600' : 'text-amber-600';
-                    const riskColor = isHighDanger ? 'text-rose-700' : 'text-amber-700';
-
+                    const s = getBlackspotStyle(spot);
                     return (
                         <MapMarker key={i} longitude={spot.lng} latitude={spot.lat}>
                             <MarkerContent>
-                                <div className="relative flex items-center justify-center">
-                                    <div className={`absolute w-10 h-10 ${ringColor} rounded-full blackspot-pulse opacity-40 animate-ping`}></div>
-                                    <div className={`relative w-4 h-4 ${dotColor} rounded-full border-2 border-white shadow-lg`}></div>
+                                <div className="relative flex items-center justify-center cursor-pointer group">
+                                    {/* Outer pulsing ring */}
+                                    <div className={`absolute w-8 h-8 ${s.ring} rounded-full opacity-40 animate-ping`} />
+                                    {/* Core sparkling dot */}
+                                    <div
+                                        className={`relative w-3.5 h-3.5 ${s.dot} rounded-full border-2 border-white shadow-lg blackspot-sparkle transition-transform group-hover:scale-125`}
+                                        style={{ boxShadow: `0 0 12px 4px ${s.glow}` }}
+                                    />
                                 </div>
                             </MarkerContent>
-                            <MarkerPopup>
-                                <div className="p-1 min-w-[150px]">
-                                    <h3 className={`font-bold ${titleColor} mb-1 flex items-center gap-1 text-sm`}>
-                                        {titleText}
-                                    </h3>
-                                    <p className="text-xs text-gray-600">Risk Score: <b className={riskColor}>{spot.risk}</b></p>
-                                    <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-center">
-                                        <div className="bg-rose-50 p-1 rounded border border-rose-100 font-medium">Fatal<br />{spot.fatal}</div>
-                                        <div className="bg-orange-50 p-1 rounded border border-orange-100 font-medium">Major<br />{spot.major}</div>
-                                        <div className="bg-gray-50 p-1 rounded border border-gray-100 font-medium">Minor<br />{spot.minor}</div>
+                            <MarkerTooltip className="bg-transparent! border-none! shadow-none! p-0!">
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    className="glass-card rounded-2xl! p-4 min-w-[190px] border border-white/20 shadow-2xl"
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className={`w-2 h-2 rounded-full ${s.dot} animate-pulse`} />
+                                        <h3 className={`font-bold ${s.labelColor} text-xs font-outfit uppercase tracking-wider`}>
+                                            {s.label}
+                                        </h3>
                                     </div>
-                                </div>
-                            </MarkerPopup>
+                                    
+                                    <div className="flex flex-col gap-2.5">
+                                        <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold px-1">
+                                            <span>SEVERITY INDEX</span>
+                                            <span className={s.riskColor}>{spot.risk}</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div className="flex flex-col items-center p-2 rounded-xl bg-red-500/5 border border-red-500/10">
+                                                <span className="text-[8px] font-black text-red-500/60 uppercase">Fatal</span>
+                                                <span className="text-sm font-black text-red-600 font-outfit">{spot.fatal || 0}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center p-2 rounded-xl bg-orange-500/5 border border-orange-500/10">
+                                                <span className="text-[8px] font-black text-orange-500/60 uppercase">Major</span>
+                                                <span className="text-sm font-black text-orange-600 font-outfit">{spot.major || 0}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center p-2 rounded-xl bg-yellow-500/5 border border-yellow-500/10">
+                                                <span className="text-[8px] font-black text-yellow-500/60 uppercase">Minor</span>
+                                                <span className="text-sm font-black text-yellow-600 font-outfit">{spot.minor || 0}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </MarkerTooltip>
                         </MapMarker>
                     );
                 })}

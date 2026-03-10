@@ -16,13 +16,13 @@ const LEGEND = [
 
 const BottomDrawer = () => {
     const [open, setOpen] = useState(false);
-    const { routeResult, blackspots, mode } = useRouteStore();
+    const { blackspots } = useRouteStore();
 
     return (
         <motion.div
             initial={{ y: 200 }}
             animate={{ y: 0 }}
-            className="fixed bottom-0 left-0 right-0 z-[1000]"
+            className="fixed bottom-0 left-0 right-0 z-1000"
         >
             <div className="glass-card rounded-t-[40px] shadow-[0_-20px_80px_rgba(0,0,0,0.15)] border-b-0 overflow-hidden">
                 {/* Visual Handle */}

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Navigation, MapPin, RefreshCw, Loader2, AlertTriangle,
     ShieldCheck, Shield, Route, Zap, TrendingDown, Scale,
-    Clock, Ruler, Star, ChevronRight
+    Clock, Ruler, Star, ChevronRight, Car, Bike, Footprints
 } from 'lucide-react';
 import LocationInput from '../UI/LocationInput';
+import DinoLoader from '../UI/DinoLoader';
 import useRouteStore from '../../store/useRouteStore';
 import { getRoute, modeToOrsPreference } from '../../services/routing';
 
@@ -39,6 +40,12 @@ const MODES = [
     },
 ];
 
+const VEHICLES = [
+    { id: 'car', label: 'Car', icon: Car },
+    { id: 'bike', label: 'Bike', icon: Bike },
+    { id: 'walk', label: 'Walk', icon: Footprints },
+];
+
 const gradeInfo = (km) => {
     const d = parseFloat(km) || 0;
     if (d === 0) return { grade: '-', color: '#94A3B8', label: 'N/A' };
@@ -50,51 +57,104 @@ const gradeInfo = (km) => {
 
 const Sidebar = () => {
     const {
-        source, destination, mode,
+        source, destination, mode, vehicle,
         routeResult, isComputing, error,
-        setSource, setDestination, setMode,
-        setRouteResult, setBlackspots, setIsComputing, setError, reset,
+        setSource, setDestination, setMode, setVehicle,
+        setRouteResult, setAllRoutes, setBlackspots, setIsComputing, setError,
     } = useRouteStore();
 
-    const handleCompute = async () => {
-        if (!source || !destination) {
-            setError('Please pinpoint your origin and destination.');
-            return;
-        }
+    const lastFetchRef = React.useRef({ source: null, destination: null, vehicle: null });
+
+    const handleCompute = React.useCallback(async () => {
+        if (!source || !destination) return;
         setIsComputing(true);
         setError(null);
-        setRouteResult(null);
 
         try {
-            const preference = modeToOrsPreference(mode);
-            const orsResult = await getRoute(
-                [source.lng, source.lat],
-                [destination.lng, destination.lat],
-                preference
-            );
+            const hasParamsChanged = 
+                lastFetchRef.current.source !== source ||
+                lastFetchRef.current.destination !== destination ||
+                lastFetchRef.current.vehicle !== vehicle;
 
-            let intel = { totalDistance: orsResult.distanceKm, blackspots: [] };
+            let routes = useRouteStore.getState().allRoutes;
+
+            if (hasParamsChanged || !routes || Object.keys(routes).length === 0) {
+                setRouteResult(null);
+                setAllRoutes({});
+                setBlackspots([]);
+
+                const fetchRoute = (pref) => getRoute(
+                    [source.lng, source.lat],
+                    [destination.lng, destination.lat],
+                    pref,
+                    vehicle
+                );
+
+                const [safestRes, shortestRes, balancedRes] = await Promise.allSettled([
+                    fetchRoute('recommended'),
+                    fetchRoute('shortest'),
+                    fetchRoute('fastest'),
+                ]);
+
+                routes = {};
+                if (safestRes.status === 'fulfilled') routes.safest = safestRes.value;
+                if (shortestRes.status === 'fulfilled') routes.shortest = shortestRes.value;
+                if (balancedRes.status === 'fulfilled') routes.balanced = balancedRes.value;
+                
+                lastFetchRef.current = { source, destination, vehicle };
+            }
+
+            const mainRoute = routes[mode] || Object.values(routes)[0];
+            
+            if (!mainRoute) {
+                throw new Error("Could not compute any routes.");
+            }
+
+            // Fetch real blackspots from backend (Supabase)
+            let blackspotData = [];
+            let distanceOverride = null;
             try {
                 const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/compute-route`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source, destination, mode })
+                    body: JSON.stringify({ source, destination, mode, routeGeometry: mainRoute.geometry })
                 });
-                if (res.ok) intel = await res.json();
-            } catch (e) { console.warn("Backend failover to ORS base."); }
+                if (res.ok) {
+                    const intel = await res.json();
+                    console.log('📍 Blackspots from backend:', intel.blackspots);
+                    blackspotData = intel.blackspots || [];
+                    distanceOverride = intel.totalDistance || null;
+                }
+            } catch (e) {
+                console.warn('⚠️ Backend unreachable.', e.message);
+            }
 
+            if (hasParamsChanged || !useRouteStore.getState().allRoutes[mode]) {
+                setAllRoutes(routes);
+            }
+            
             setRouteResult({
-                ...orsResult,
-                distanceKm: intel.totalDistance || orsResult.distanceKm,
+                ...mainRoute,
+                distanceKm: distanceOverride || mainRoute.distanceKm,
             });
-            setBlackspots(intel.blackspots || []);
+            setBlackspots(blackspotData);
 
         } catch (err) {
+            console.error('Route error:', err);
             setError('Navigation error. Try common Pune junctions.');
         } finally {
             setIsComputing(false);
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [source, destination, mode, vehicle, setIsComputing, setError, setRouteResult, setAllRoutes, setBlackspots]);
+
+    // Auto-compute when parameters change
+    React.useEffect(() => {
+        if (source && destination) {
+            handleCompute();
+        }
+    }, [source, destination, mode, vehicle, handleCompute]);
+
 
     const activeMode = MODES.find(m => m.id === mode);
     const grade = gradeInfo(routeResult?.distanceKm);
@@ -103,7 +163,7 @@ const Sidebar = () => {
         <motion.div
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="absolute top-6 left-6 w-[360px] z-1000 flex flex-col gap-4"
+            className="absolute top-5 left-5 w-[330px] z-1000 flex flex-col gap-4"
         >
             {/* ── Main Planner Card ── */}
             <div className="glass-card rounded-[32px] p-6 shadow-2xl relative overflow-hidden">
@@ -113,30 +173,30 @@ const Sidebar = () => {
                         whileHover={{ scale: 1.05, rotate: 5 }}
                         className="relative group cursor-pointer"
                     >
-                        <div className="absolute inset-0 bg-emerald-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                        <div className="relative w-11 h-11 rounded-2xl bg-slate-950 flex items-center justify-center border border-white/10 shadow-2xl">
-                            <Shield className="text-emerald-400" size={22} strokeWidth={2.5} />
+                        <div className="absolute inset-0 bg-emerald-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-500" />
+                        <div className="relative w-10 h-10 rounded-[16px] bg-slate-950 flex items-center justify-center border border-white/10 shadow-2xl">
+                            <Shield className="text-emerald-400" size={20} strokeWidth={2.2} />
                         </div>
                     </motion.div>
 
                     <div className="flex flex-col">
-                        <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
-                            Apaghat<span className="text-emerald-500">Darshak</span>
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight font-outfit">
+                            Apaghat<span className="text-emerald-500 font-extrabold ml-0.5">Darshak</span>
                         </h1>
-                        <div className="flex items-center gap-2 mt-1">
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center gap-2.5 mt-1">
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/15">
                                 <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter">Live Monitor</span>
+                                <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest hidden sm:block">· Pune Division</span>
+                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-[0.12em] hidden sm:block font-outfit">· PUNE DIVISION</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Vertical Step Connector */}
-                <div className="relative mb-8 px-1">
-                    <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-slate-100 dark:bg-slate-800/50" />
-                    <div className="space-y-4">
+                <div className="relative mb-8 px-0.5">
+                    <div className="absolute left-6 top-4 bottom-4 w-px bg-slate-100 dark:bg-slate-800/40" />
+                    <div className="space-y-3">
                         <LocationInput
                             placeholder="Starting Point"
                             icon={MapPin}
@@ -152,8 +212,30 @@ const Sidebar = () => {
                     </div>
                 </div>
 
+                {/* Vehicle Selector */}
+                <div className="flex bg-slate-100 dark:bg-slate-800/40 p-1 rounded-2xl mb-5">
+                    {VEHICLES.map(v => {
+                        const Icon = v.icon;
+                        const active = vehicle === v.id;
+                        return (
+                            <button
+                                key={v.id}
+                                onClick={() => setVehicle(v.id)}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all duration-300 font-outfit text-xs font-bold ${
+                                    active
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                <Icon size={14} />
+                                {v.label}
+                            </button>
+                        );
+                    })}
+                </div>
+
                 {/* Mode Selector */}
-                <div className="grid grid-cols-3 gap-2 mb-8">
+                <div className="grid grid-cols-3 gap-2 mb-6">
                     {MODES.map(m => {
                         const Icon = m.icon;
                         const active = mode === m.id;
@@ -161,14 +243,18 @@ const Sidebar = () => {
                             <button
                                 key={m.id}
                                 onClick={() => setMode(m.id)}
-                                className={`flex flex-col items-center gap-1.5 p-3.5 rounded-2xl transition-all border-2 ${active
-                                    ? 'bg-white dark:bg-slate-800 shadow-xl border-emerald-500/10'
-                                    : 'bg-transparent border-transparent opacity-40 grayscale hover:opacity-100'
+                                className={`flex flex-col items-center gap-1.5 px-2 py-3 rounded-2xl transition-all duration-300 border ${active
+                                    ? 'bg-slate-50 dark:bg-slate-800/40 shadow-inner border-emerald-500/20'
+                                    : 'bg-transparent border-transparent opacity-40 grayscale hover:opacity-100 hover:bg-slate-50/50 dark:hover:bg-slate-800/20'
                                     }`}
-                                style={{ borderColor: active ? m.color : 'transparent' }}
                             >
-                                <Icon size={20} style={{ color: active ? m.color : '#64748B' }} />
-                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${active ? 'text-slate-800 dark:text-white' : 'text-slate-500'}`}>
+                                <div 
+                                    className={`p-1.5 rounded-lg transition-colors ${active ? 'bg-white dark:bg-slate-800 shadow-sm' : ''}`}
+                                    style={{ color: active ? m.color : '#64748B' }}
+                                >
+                                    <Icon size={18} strokeWidth={2.5} />
+                                </div>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider font-outfit ${active ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>
                                     {m.label}
                                 </span>
                             </button>
@@ -176,66 +262,66 @@ const Sidebar = () => {
                     })}
                 </div>
 
-                {/* Action Button */}
-                <motion.button
-                    whileHover={{ scale: 1.02, translateY: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleCompute}
-                    disabled={isComputing || !source || !destination}
-                    className="w-full py-4 rounded-2xl bg-slate-900 dark:bg-emerald-600 text-white font-bold flex items-center justify-center gap-3 shadow-xl transition-all disabled:opacity-30 disabled:grayscale"
-                >
-                    {isComputing ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} className="fill-white" />}
-                    {isComputing ? 'Computing Safest Path...' : 'Plan Secure Route'}
-                </motion.button>
+                <AnimatePresence>
+                    {isComputing && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                        >
+                            <DinoLoader />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                {error && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-4 p-4 bg-rose-50 dark:bg-rose-900/20 rounded-2xl border border-rose-100 dark:border-rose-900/30 flex items-center gap-3 text-xs text-rose-600 dark:text-rose-400 font-bold"
-                    >
-                        <AlertTriangle className="shrink-0" size={16} /> {error}
-                    </motion.div>
-                )}
+            {error && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-5 p-4 bg-rose-50/50 dark:bg-rose-950/20 rounded-[20px] border border-rose-200/30 dark:border-rose-800/30 flex items-center gap-3 text-xs text-rose-600 dark:text-rose-400 font-medium font-outfit"
+                >
+                    <AlertTriangle className="shrink-0" size={16} /> {error}
+                </motion.div>
+            )}
             </div>
 
             {/* ── Statistics Overlay ── */}
             <AnimatePresence>
-                {routeResult && (
+                {routeResult && !isComputing && (
                     <motion.div
-                        initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                        initial={{ opacity: 0, y: 30, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 30, scale: 0.9 }}
-                        className="glass-card rounded-[32px] p-6 shadow-2xl border-b-4"
+                        exit={{ opacity: 0, y: 30, scale: 0.95 }}
+                        className="glass-card rounded-[40px] p-8 shadow-2xl border-b-4 border-emerald-500/50"
                         style={{ borderBottomColor: activeMode.color }}
                     >
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Travel Statistics</h3>
-                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-[0.2em] font-outfit">Travel Statistics</h3>
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700/50">
                                 <ShieldCheck size={14} style={{ color: grade.color }} />
-                                <span className="text-[11px] font-black" style={{ color: grade.color }}>{grade.label}</span>
+                                <span className="text-[11px] font-bold font-outfit" style={{ color: grade.color }}>{grade.label}</span>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                            <div className="p-5 rounded-[28px] bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50">
                                 <div className="flex items-center gap-2 mb-2 text-slate-400">
                                     <Ruler size={12} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Distance</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-widest font-outfit text-slate-500/80">Distance</span>
                                 </div>
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">
+                                <p className="text-2xl font-bold text-slate-800 dark:text-white font-outfit">
                                     {routeResult.distanceKm}
-                                    <span className="text-xs ml-1 font-bold text-slate-400">KM</span>
+                                    <span className="text-xs ml-1 font-semibold text-slate-400">KM</span>
                                 </p>
                             </div>
-                            <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                            <div className="p-5 rounded-[28px] bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50">
                                 <div className="flex items-center gap-2 mb-2 text-slate-400">
                                     <Clock size={12} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Estimates</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-widest font-outfit text-slate-500/80">Estimates</span>
                                 </div>
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">
+                                <p className="text-2xl font-bold text-slate-800 dark:text-white font-outfit">
                                     {routeResult.durationMin}
-                                    <span className="text-xs ml-1 font-bold text-slate-400">MIN</span>
+                                    <span className="text-xs ml-1 font-semibold text-slate-400">MIN</span>
                                 </p>
                             </div>
                         </div>

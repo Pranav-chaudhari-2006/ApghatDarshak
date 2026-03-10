@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/exhaustive-deps, react-refresh/only-export-components */
 
 import MapLibreGL from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -929,16 +930,16 @@ function MapRoute({
     useEffect(() => {
         if (!isLoaded || !map || !interactive) return;
 
-        const handleClick = () => {
-            onClick?.();
+        const handleClick = (e) => {
+            onClick?.(e);
         };
-        const handleMouseEnter = () => {
+        const handleMouseEnter = (e) => {
             map.getCanvas().style.cursor = "pointer";
-            onMouseEnter?.();
+            onMouseEnter?.(e);
         };
-        const handleMouseLeave = () => {
+        const handleMouseLeave = (e) => {
             map.getCanvas().style.cursor = "";
-            onMouseLeave?.();
+            onMouseLeave?.(e);
         };
 
         map.on("click", layerId, handleClick);
