@@ -47,37 +47,43 @@ const Landing = () => {
         const loader = new THREE.TextureLoader();
 
         // 45 Procedurally generated planets with various sizes, distances, and orbital tilts
-        const planetData = [];
-        const textures = [
-            '//unpkg.com/three-globe/example/img/earth-topology.png',
-            '//unpkg.com/three-globe/example/img/earth-clouds.png',
-            '//unpkg.com/three-globe/example/img/earth-day.jpg',
-            '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
-            '//unpkg.com/three-globe/example/img/earth-dark.jpg'
+        const planetConfigs = [
+            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', color: 0xffffff, roughness: 0.9, metalness: 0.0, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', bumpScale: 2.0, emissive: 0x000000 },
+            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k_color.jpg', color: 0xffaa88, roughness: 0.8, metalness: 0.2, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k_normal.jpg', bumpScale: 1.5, emissive: 0x000000 },
+            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/jupiter.jpg', color: 0xffffff, roughness: 0.4, metalness: 0.1, bump: null, bumpScale: 0.0, emissive: 0x000000 },
+            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/venus_surface_2048.jpg', color: 0xffddaa, roughness: 0.6, metalness: 0.1, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/venus_surface_2048.jpg', bumpScale: 1.2, emissive: 0x000000 },
+            { map: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg', color: 0xffffff, roughness: 0.6, metalness: 0.3, bump: '//unpkg.com/three-globe/example/img/earth-topology.png', bumpScale: 4.0, emissive: 0x000000 },
+            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', color: 0x88ffaa, roughness: 0.9, metalness: 0.4, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', bumpScale: 3.0, emissive: 0x002200 }, // Toxic green planet
+            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/jupiter.jpg', color: 0x88ccff, roughness: 0.2, metalness: 0.5, bump: null, bumpScale: 0.0, emissive: 0x001133 }, // Ice gas giant
+            { map: '//unpkg.com/three-globe/example/img/earth-dark.jpg', color: 0xff5522, roughness: 0.8, metalness: 0.3, bump: '//unpkg.com/three-globe/example/img/earth-topology.png', bumpScale: 5.0, emissive: 0x330000 }, // Volcanic magma planet
         ];
-        const colors = [0x9e9e9e, 0xf4a460, 0xcd5c5c, 0xdeb887, 0xf5f5f5, 0xdaa520, 0x87ceeb, 0x4682b4, 0xbc8f8f, 0xaaffaa, 0x9370db, 0xff69b4];
+
+        const planetData = [];
         
         for (let i = 0; i < 8; i++) {
+            const cfg = planetConfigs[i];
             planetData.push({
                 name: `P${i}`,
-                r: 4.5 + Math.random() * 5.0, // Much larger planets
-                dist: 180 + Math.random() * 600, // Kept relatively close but spread out
-                speed: 0.004 + Math.random() * 0.008, // Smooth planetary drift
-                color: colors[Math.floor(Math.random() * colors.length)],
-                tex: textures[Math.floor(Math.random() * textures.length)],
-                hasRings: Math.random() > 0.7,
-                orbitTiltX: (Math.random() - 0.5) * 0.4, // Slight tilt for proper 3D without chaos
+                r: 4.5 + Math.random() * 5.0, 
+                dist: 180 + Math.random() * 600, 
+                speed: 0.004 + Math.random() * 0.008, 
+                hasRings: Math.random() > 0.6,
+                orbitTiltX: (Math.random() - 0.5) * 0.4, 
                 orbitTiltZ: (Math.random() - 0.5) * 0.4,
+                ...cfg
             });
         }
 
         const planetMeshes = planetData.map(p => {
-            const geo = new THREE.SphereGeometry(p.r, 32, 32);
+            const geo = new THREE.SphereGeometry(p.r, 64, 64); // Higher segment count for hyperrealism
             const mat = new THREE.MeshStandardMaterial({
                 color: p.color,
-                map: loader.load(p.tex),
-                roughness: 0.2,
-                metalness: 0.2,
+                map: loader.load(p.map),
+                roughness: p.roughness,
+                metalness: p.metalness,
+                bumpMap: p.bump ? loader.load(p.bump) : null,
+                bumpScale: p.bumpScale,
+                emissive: p.emissive,
                 flatShading: false
             });
 
@@ -216,7 +222,7 @@ const Landing = () => {
                 reqId = requestAnimationFrame(animate);
             } else {
                 setBlackout(true);
-                setTimeout(() => navigate('/dashboard'), 800);
+                setTimeout(() => navigate('/auth'), 800);
             }
         };
 

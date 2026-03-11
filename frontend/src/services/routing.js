@@ -1,81 +1,52 @@
-// OpenRouteService (ORS) Routing Service
-// Docs: https://openrouteservice.org/dev/#/api-docs
-// Profile used: driving-car (road network)
+/**
+ * ApghatDarshak — Route API Service
+ *
+ * Calls the backend A* routing engine instead of ORS.
+ * One single call returns all 3 route variants + blackspots.
+ */
 
-const ORS_BASE = 'https://api.openrouteservice.org/v2';
-const API_KEY = import.meta.env.VITE_ORS_API_KEY;
+import { API_BASE_URL } from '../config/api';
 
 /**
- * Get a route from ORS between two coordinates
+ * Compute A* routes from backend for all 3 modes simultaneously.
  *
- * @param {[number, number]} origin - [lng, lat]  ← ORS uses lng,lat order
- * @param {[number, number]} destination - [lng, lat]
- * @param {string} preference - 'recommended' | 'fastest' | 'shortest'
- * @returns route geometry (array of [lat, lng] pairs for Leaflet), distance in km, duration in mins
+ * @param {{ lat, lng }} source
+ * @param {{ lat, lng }} destination
+ * @param {string} vehicle  'car' | 'bike' | 'walk'
+ * @param {string} mode     'shortest' | 'safest' | 'balanced'
+ *
+ * @returns {{ routes: {safest,shortest,balanced}, blackspots, totalRisk, snapped, algorithm }}
  */
-export async function getRoute(origin, destination, preference = 'recommended', vehicle = 'car') {
-    const vMap = {
-        car: 'driving-car',
-        bike: 'cycling-regular',
-        walk: 'foot-walking'
-    };
-    const profile = vMap[vehicle] || 'driving-car';
-
-    const body = {
-        coordinates: [origin, destination],
-        preference,
-        format: 'geojson', // Request GeoJSON for direct coordinate access
-        units: 'km',
-        language: 'en',
-        geometry: true,
-        instructions: false,
-    };
-
-    console.log("ORS Request:", profile, body);
-
-    const response = await fetch(`${ORS_BASE}/directions/${profile}/geojson`, {
-        method: 'POST',
-        headers: {
-            'Authorization': API_KEY,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json, application/geo+json',
-        },
-        body: JSON.stringify(body),
+export async function computeAstarRoutes(source, destination, vehicle = 'car', mode = 'safest') {
+    const response = await fetch(`${API_BASE_URL}/route`, {
+        method  : 'POST',
+        headers : { 'Content-Type': 'application/json' },
+        body    : JSON.stringify({
+            sourceLat : source.lat,
+            sourceLng : source.lng,
+            destLat   : destination.lat,
+            destLng   : destination.lng,
+            mode,
+            vehicle,
+        }),
     });
 
     if (!response.ok) {
         const err = await response.text();
-        console.error("ORS Error Response:", err);
-        throw new Error(`ORS routing failed: ${response.status} ${err}`);
+        throw new Error(`A* routing failed: ${response.status} — ${err}`);
     }
 
     const data = await response.json();
-    console.log("ORS Response Data:", data);
 
-    // When format is 'geojson', ORS returns a FeatureCollection
-    const feature = data.features[0];
-    if (!feature) throw new Error("No route found in ORS response");
-
-    const { summary } = feature.properties;
-
-    // ORS returns coordinates as [lng, lat] — flip to [lat, lng] for internal store
-    const geometry = feature.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-
-    return {
-        geometry,
-        distanceKm: (summary.distance).toFixed(2),
-        durationMin: (summary.duration / 60).toFixed(1),
-    };
-}
-
-/**
- * Map our routing mode → ORS preference
- */
-export function modeToOrsPreference(mode) {
-    switch (mode) {
-        case 'shortest': return 'shortest';
-        case 'safest': return 'recommended'; // ORS recommended avoids highways = safer
-        case 'balanced': return 'fastest';
-        default: return 'recommended';
+    if (!data.success) {
+        throw new Error(data.message || 'Routing engine returned no route');
     }
+
+    console.log(`🚀 A* result: algorithm=${data.algorithm}, mode=${data.mode}`);
+    console.log(`   Snapped source → "${data.snapped?.source?.name}"`);
+    console.log(`   Snapped dest   → "${data.snapped?.destination?.name}"`);
+    console.log(`   Routes found   : ${Object.keys(data.routes).join(', ')}`);
+    console.log(`   Blackspots     : ${data.blackspots?.length}`);
+
+    return data;
 }

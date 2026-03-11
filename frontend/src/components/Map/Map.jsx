@@ -16,7 +16,7 @@ import {
     useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
+import { X, Minus, Plus, Locate, Maximize, Loader2, Globe, Layers, Box } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
@@ -614,11 +614,15 @@ function MapControls({
     showCompass = false,
     showLocate = false,
     showFullscreen = false,
+    showGlobe = true,
+    show3D = true,
     className,
     onLocate,
 }) {
     const { map } = useMap();
     const [waitingForLocation, setWaitingForLocation] = useState(false);
+    const [isGlobe, setIsGlobe] = useState(false);
+    const [is3D, setIs3D] = useState(false);
 
     const handleZoomIn = useCallback(() => {
         map?.zoomTo(map.getZoom() + 1, { duration: 300 });
@@ -667,6 +671,32 @@ function MapControls({
         }
     }, [map]);
 
+    const toggleGlobe = useCallback(() => {
+        if (!map) return;
+        const nextGlobe = !isGlobe;
+        setIsGlobe(nextGlobe);
+        
+        if (nextGlobe) {
+            map.setProjection({ type: 'globe' });
+            map.flyTo({ zoom: 1, duration: 2500, essential: true });
+        } else {
+            map.setProjection({ type: 'mercator' });
+            map.flyTo({ zoom: 12, center: [73.8567, 18.5204], duration: 2500, essential: true });
+        }
+    }, [map, isGlobe]);
+
+    const toggle3D = useCallback(() => {
+        if (!map) return;
+        const next3D = !is3D;
+        setIs3D(next3D);
+        
+        if (next3D) {
+            map.easeTo({ pitch: 60, bearing: -20, duration: 1000 });
+        } else {
+            map.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
+        }
+    }, [map, is3D]);
+
     return (
         <div
             className={cn(
@@ -709,6 +739,28 @@ function MapControls({
                 <ControlGroup>
                     <ControlButton onClick={handleFullscreen} label="Toggle fullscreen">
                         <Maximize className="size-4" />
+                    </ControlButton>
+                </ControlGroup>
+            )}
+            {showGlobe && (
+                <ControlGroup>
+                    <ControlButton 
+                        onClick={toggleGlobe} 
+                        label="Toggle Globe View"
+                        className={isGlobe ? "bg-blue-500/10 text-blue-500" : ""}
+                    >
+                        <Globe className="size-4" />
+                    </ControlButton>
+                </ControlGroup>
+            )}
+            {show3D && (
+                <ControlGroup>
+                    <ControlButton 
+                        onClick={toggle3D} 
+                        label="Toggle 3D Perspective"
+                        className={is3D ? "bg-emerald-500/10 text-emerald-500" : ""}
+                    >
+                        <Box className="size-4" />
                     </ControlButton>
                 </ControlGroup>
             )}

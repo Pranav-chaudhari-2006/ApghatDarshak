@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Navigation, MapPin, RefreshCw, Loader2, AlertTriangle,
     ShieldCheck, Shield, Route, Zap, TrendingDown, Scale,
-    Clock, Ruler, Star, ChevronRight, Car, Bike, Footprints
+    Clock, Ruler, Star, ChevronRight, Car, Bike, Footprints, Bookmark
 } from 'lucide-react';
 import LocationInput from '../UI/LocationInput';
 import DinoLoader from '../UI/DinoLoader';
 import useRouteStore from '../../store/useRouteStore';
-import { getRoute, modeToOrsPreference } from '../../services/routing';
+import { computeAstarRoutes } from '../../services/routing';
 
 const MODES = [
     {
@@ -71,77 +71,50 @@ const Sidebar = () => {
         setError(null);
 
         try {
-            const hasParamsChanged = 
-                lastFetchRef.current.source !== source ||
+            const hasParamsChanged =
+                lastFetchRef.current.source      !== source  ||
                 lastFetchRef.current.destination !== destination ||
-                lastFetchRef.current.vehicle !== vehicle;
+                lastFetchRef.current.vehicle     !== vehicle;
 
-            let routes = useRouteStore.getState().allRoutes;
+            // Use cached routes if only mode changed
+            let cachedRoutes = useRouteStore.getState().allRoutes;
+            const hasCachedRoutes = cachedRoutes && Object.keys(cachedRoutes).length > 0;
 
-            if (hasParamsChanged || !routes || Object.keys(routes).length === 0) {
+            if (hasParamsChanged || !hasCachedRoutes) {
                 setRouteResult(null);
                 setAllRoutes({});
                 setBlackspots([]);
 
-                const fetchRoute = (pref) => getRoute(
-                    [source.lng, source.lat],
-                    [destination.lng, destination.lat],
-                    pref,
-                    vehicle
-                );
+                // ── Single A* call — returns ALL 3 routes + blackspots ──
+                const result = await computeAstarRoutes(source, destination, vehicle, mode);
 
-                const [safestRes, shortestRes, balancedRes] = await Promise.allSettled([
-                    fetchRoute('recommended'),
-                    fetchRoute('shortest'),
-                    fetchRoute('fastest'),
-                ]);
+                const { routes, blackspots, snapped } = result;
 
-                routes = {};
-                if (safestRes.status === 'fulfilled') routes.safest = safestRes.value;
-                if (shortestRes.status === 'fulfilled') routes.shortest = shortestRes.value;
-                if (balancedRes.status === 'fulfilled') routes.balanced = balancedRes.value;
-                
-                lastFetchRef.current = { source, destination, vehicle };
-            }
-
-            const mainRoute = routes[mode] || Object.values(routes)[0];
-            
-            if (!mainRoute) {
-                throw new Error("Could not compute any routes.");
-            }
-
-            // Fetch real blackspots from backend (Supabase)
-            let blackspotData = [];
-            let distanceOverride = null;
-            try {
-                const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/compute-route`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source, destination, mode, routeGeometry: mainRoute.geometry })
-                });
-                if (res.ok) {
-                    const intel = await res.json();
-                    console.log('📍 Blackspots from backend:', intel.blackspots);
-                    blackspotData = intel.blackspots || [];
-                    distanceOverride = intel.totalDistance || null;
-                }
-            } catch (e) {
-                console.warn('⚠️ Backend unreachable.', e.message);
-            }
-
-            if (hasParamsChanged || !useRouteStore.getState().allRoutes[mode]) {
+                // Store all routes so mode-switching is instant (no re-fetch)
                 setAllRoutes(routes);
+                setBlackspots(blackspots || []);
+
+                cachedRoutes = routes;
+                lastFetchRef.current = { source, destination, vehicle };
+
+                if (snapped) {
+                    console.log(`📍 Snapped: ${snapped.source?.name} → ${snapped.destination?.name}`);
+                }
             }
-            
-            setRouteResult({
-                ...mainRoute,
-                distanceKm: distanceOverride || mainRoute.distanceKm,
-            });
-            setBlackspots(blackspotData);
+
+            // Select primary route for the current mode
+            const mainRoute = cachedRoutes[mode] || Object.values(cachedRoutes)[0];
+            if (!mainRoute) throw new Error('No route available for this mode.');
+
+            setRouteResult(mainRoute);
 
         } catch (err) {
-            console.error('Route error:', err);
-            setError('Navigation error. Try common Pune junctions.');
+            console.error('A* Route error:', err);
+            setError(
+                err.message?.includes('No route found')
+                  ? 'No route found between these locations in our Pune graph. Try major junctions like Shivajinagar or Hadapsar.'
+                  : 'Routing engine error. Please check the backend is running.'
+            );
         } finally {
             setIsComputing(false);
         }
@@ -324,6 +297,37 @@ const Sidebar = () => {
                                     <span className="text-xs ml-1 font-semibold text-slate-400">MIN</span>
                                 </p>
                             </div>
+                        </div>
+
+                        {/* Save Route Action */}
+                        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-white/5">
+                            <button
+                                onClick={() => {
+                                    useRouteStore.getState().saveRoute(routeResult, { 
+                                        source, 
+                                        destination, 
+                                        mode,
+                                        riskScore: routeResult.riskScore || 0,
+                                        blackspotCount: (useRouteStore.getState().blackspots || []).length
+                                    });
+                                    // Visual feedback
+                                    const btn = document.getElementById('save-route-btn');
+                                    if (btn) {
+                                        const original = btn.innerHTML;
+                                        btn.innerHTML = 'Saved Successfully!';
+                                        btn.classList.add('bg-emerald-500', 'text-white');
+                                        setTimeout(() => {
+                                            btn.innerHTML = original;
+                                            btn.classList.remove('bg-emerald-500', 'text-white');
+                                        }, 2000);
+                                    }
+                                }}
+                                id="save-route-btn"
+                                className="w-full flex items-center justify-center gap-3 py-4 rounded-[24px] bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                            >
+                                <Bookmark size={14} />
+                                Save to History
+                            </button>
                         </div>
                     </motion.div>
                 )}

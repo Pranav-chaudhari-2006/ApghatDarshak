@@ -39,8 +39,10 @@ root/
 │   ├── controllers/   # Routing logic & logic checks
 │   ├── routes/        # API Endpoints
 │   └── seed/          # SQL Database Seed Data
-├── requirements.md    # Detailed functional requirements
-└── techstack.md       # Technical specifications
+└── docs/              # Project Documentation
+    ├── requirements.md # Detailed functional requirements
+    ├── techstack.md    # Technical specifications
+    └── UI.md           # UI/UX Specifications
 ```
 
 ## ⚙️ Setup Instructions

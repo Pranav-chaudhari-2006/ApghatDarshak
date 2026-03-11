@@ -84,12 +84,15 @@ const FitBounds = ({ geometry }) => {
 };
 
 const MapView = () => {
-    const { source, destination, mode, routeResult, allRoutes, blackspots, setMode } = useRouteStore();
+    const { source, destination, mode, routeResult, allRoutes, blackspots, showBlackspots, setMode } = useRouteStore();
     const routeStyle = ROUTE_STYLES[mode] || ROUTE_STYLES.safest;
     const [hoveredRoute, setHoveredRoute] = useState(null);
 
     // Route is only "active" when we have computed geometry
     const hasRoute = !!(routeResult?.geometry?.length > 1);
+
+    // Debug log
+    console.log(`🗺️ MapView render: ${blackspots.length} blackspots, showBlackspots=${showBlackspots}, hasRoute=${hasRoute}`);
 
     // Convert geometry from store [lat,lng] → MapLibre [lng,lat]
     const mapRouteCoords = routeResult?.geometry?.map(([lat, lng]) => [lng, lat]) || [];
@@ -106,7 +109,7 @@ const MapView = () => {
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full">
             <Map center={PUNE_CENTER} zoom={12} className="w-full h-full">
-                <MapControls position="bottom-right" showZoom showLocate showFullscreen />
+                <MapControls position="bottom-right" showZoom showLocate showFullscreen showGlobe show3D />
 
                 {/* Auto-fit to route */}
                 {hasRoute && <FitBounds geometry={routeResult.geometry} />}
@@ -220,18 +223,25 @@ const MapView = () => {
                 )}
 
                 {/* ── Blackspots — Visible during selection and after route computation ── */}
-                {blackspots.map((spot, i) => {
+                {showBlackspots && blackspots.map((spot, i) => {
                     const s = getBlackspotStyle(spot);
                     return (
-                        <MapMarker key={i} longitude={spot.lng} latitude={spot.lat}>
+                        <MapMarker key={`bs-${i}`} longitude={spot.lng} latitude={spot.lat}>
                             <MarkerContent>
-                                <div className="relative flex items-center justify-center cursor-pointer group">
-                                    {/* Outer pulsing ring */}
-                                    <div className={`absolute w-8 h-8 ${s.ring} rounded-full opacity-40 animate-ping`} />
-                                    {/* Core sparkling dot */}
+                                {/* Explicit w-8 h-8 container so absolute children have a positioned parent with size */}
+                                <div className="relative w-8 h-8 flex items-center justify-center cursor-pointer group">
+                                    {/* Outer pulsing ring — fills the 32px container */}
                                     <div
-                                        className={`relative w-3.5 h-3.5 ${s.dot} rounded-full border-2 border-white shadow-lg blackspot-sparkle transition-transform group-hover:scale-125`}
-                                        style={{ boxShadow: `0 0 12px 4px ${s.glow}` }}
+                                        className={`absolute inset-0 ${s.ring} rounded-full opacity-50 animate-ping`}
+                                    />
+                                    {/* Secondary softer ring */}
+                                    <div
+                                        className={`absolute inset-1 ${s.ring} rounded-full opacity-30`}
+                                    />
+                                    {/* Core dot — centered inside */}
+                                    <div
+                                        className={`relative z-10 w-4 h-4 ${s.dot} rounded-full border-2 border-white shadow-lg blackspot-sparkle transition-transform group-hover:scale-125`}
+                                        style={{ boxShadow: `0 0 14px 5px ${s.glow}88` }}
                                     />
                                 </div>
                             </MarkerContent>
