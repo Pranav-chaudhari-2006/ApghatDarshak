@@ -16,6 +16,7 @@ import {
     useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Locate, Maximize, Loader2, Globe, Layers, Box } from "lucide-react";
 
 import { cn } from "../../lib/utils";
@@ -623,6 +624,7 @@ function MapControls({
     const [waitingForLocation, setWaitingForLocation] = useState(false);
     const [isGlobe, setIsGlobe] = useState(false);
     const [is3D, setIs3D] = useState(false);
+    const [activeTooltip, setActiveTooltip] = useState(null);
 
     const handleZoomIn = useCallback(() => {
         map?.zoomTo(map.getZoom() + 1, { duration: 300 });
@@ -678,6 +680,13 @@ function MapControls({
         
         if (nextGlobe) {
             map.setProjection({ type: 'globe' });
+            map.setFog({
+                'color': 'rgb(2, 6, 23)', // Match slate-950
+                'high-color': 'rgb(30, 41, 59)',
+                'horizon-blend': 0.1,
+                'space-color': 'rgb(0, 0, 0)',
+                'star-intensity': 0.8
+            });
             map.flyTo({ zoom: 1, duration: 2500, essential: true });
         } else {
             map.setProjection({ type: 'mercator' });
@@ -705,63 +714,83 @@ function MapControls({
                 className
             )}
         >
+            <AnimatePresence>
+                {activeTooltip && (
+                    <motion.div 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        className="absolute right-12 top-0 pointer-events-none bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-bold text-white uppercase tracking-widest shadow-2xl"
+                    >
+                        {activeTooltip}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {showZoom && (
                 <ControlGroup>
-                    <ControlButton onClick={handleZoomIn} label="Zoom in">
-                        <Plus className="size-4" />
-                    </ControlButton>
-                    <ControlButton onClick={handleZoomOut} label="Zoom out">
-                        <Minus className="size-4" />
-                    </ControlButton>
-                </ControlGroup>
-            )}
-            {showCompass && (
-                <ControlGroup>
-                    <CompassButton onClick={handleResetBearing} />
+                    <div onMouseEnter={() => setActiveTooltip('In')} onMouseLeave={() => setActiveTooltip(null)}>
+                        <ControlButton onClick={handleZoomIn} label="Zoom in">
+                            <Plus className="size-4" />
+                        </ControlButton>
+                    </div>
+                    <div onMouseEnter={() => setActiveTooltip('Out')} onMouseLeave={() => setActiveTooltip(null)}>
+                        <ControlButton onClick={handleZoomOut} label="Zoom out">
+                            <Minus className="size-4" />
+                        </ControlButton>
+                    </div>
                 </ControlGroup>
             )}
             {showLocate && (
                 <ControlGroup>
-                    <ControlButton
-                        onClick={handleLocate}
-                        label="Find my location"
-                        disabled={waitingForLocation}
-                    >
-                        {waitingForLocation ? (
-                            <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                            <Locate className="size-4" />
-                        )}
-                    </ControlButton>
+                    <div onMouseEnter={() => setActiveTooltip('Find Me')} onMouseLeave={() => setActiveTooltip(null)}>
+                        <ControlButton
+                            onClick={handleLocate}
+                            label="Find my location"
+                            disabled={waitingForLocation}
+                        >
+                            {waitingForLocation ? (
+                                <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                                <Locate className="size-4" />
+                            )}
+                        </ControlButton>
+                    </div>
                 </ControlGroup>
             )}
             {showFullscreen && (
                 <ControlGroup>
-                    <ControlButton onClick={handleFullscreen} label="Toggle fullscreen">
-                        <Maximize className="size-4" />
-                    </ControlButton>
+                    <div onMouseEnter={() => setActiveTooltip('Full')} onMouseLeave={() => setActiveTooltip(null)}>
+                        <ControlButton onClick={handleFullscreen} label="Toggle fullscreen">
+                            <Maximize className="size-4" />
+                        </ControlButton>
+                    </div>
                 </ControlGroup>
             )}
             {showGlobe && (
                 <ControlGroup>
-                    <ControlButton 
-                        onClick={toggleGlobe} 
-                        label="Toggle Globe View"
-                        className={isGlobe ? "bg-blue-500/10 text-blue-500" : ""}
-                    >
-                        <Globe className="size-4" />
-                    </ControlButton>
+                    <div onMouseEnter={() => setActiveTooltip('Globe')} onMouseLeave={() => setActiveTooltip(null)}>
+                        <ControlButton 
+                            onClick={toggleGlobe} 
+                            label="Toggle Globe View"
+                            className={isGlobe ? "bg-blue-500/10 text-blue-500" : ""}
+                        >
+                            <Globe className="size-4" />
+                        </ControlButton>
+                    </div>
                 </ControlGroup>
             )}
             {show3D && (
                 <ControlGroup>
-                    <ControlButton 
-                        onClick={toggle3D} 
-                        label="Toggle 3D Perspective"
-                        className={is3D ? "bg-emerald-500/10 text-emerald-500" : ""}
-                    >
-                        <Box className="size-4" />
-                    </ControlButton>
+                    <div onMouseEnter={() => setActiveTooltip('3D')} onMouseLeave={() => setActiveTooltip(null)}>
+                        <ControlButton 
+                            onClick={toggle3D} 
+                            label="Toggle 3D Perspective"
+                            className={is3D ? "bg-emerald-500/10 text-emerald-500" : ""}
+                        >
+                            <Box className="size-4" />
+                        </ControlButton>
+                    </div>
                 </ControlGroup>
             )}
         </div>
@@ -909,6 +938,7 @@ function MapRoute({
     width = 3,
     opacity = 0.8,
     dashArray,
+    offset = 0,
     onClick,
     onMouseEnter,
     onMouseLeave,
@@ -941,6 +971,7 @@ function MapRoute({
                 "line-color": color,
                 "line-width": width,
                 "line-opacity": opacity,
+                "line-offset": offset,
                 ...(dashArray && { "line-dasharray": dashArray }),
             },
         });

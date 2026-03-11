@@ -1,7 +1,7 @@
 'use strict';
 
 const supabase              = require('../config/db');
-const { computeRoute, extractBlackspots, buildGraph } = require('../services/astar');
+const { computeRoute, extractBlackspots, buildGraph, runAstar, findNearestNode } = require('../services/astar');
 
 /**
  * POST /api/route
@@ -43,54 +43,150 @@ exports.computeAstarRoute = async (req, res) => {
 
         console.log(`🔍 A* graph loaded: ${nodes.length} nodes, ${roads.length} roads, ${accidents.length} accident records`);
 
-        // ── 2. Run A* for all 3 modes in parallel ────────────────────────
-        const args = [nodes, roads, accidents, sourceLat, sourceLng, destLat, destLng];
+        // ── 2. Build the graph once ──────────────────────────────────────
+        const graphData = buildGraph(nodes, roads, accidents);
+        const { nodeMap, adjacency } = graphData;
 
-        const [safestResult, shortestResult, balancedResult] = await Promise.all([
-            Promise.resolve(computeRoute(...args, 'safest',   vehicle)),
-            Promise.resolve(computeRoute(...args, 'shortest', vehicle)),
-            Promise.resolve(computeRoute(...args, 'balanced', vehicle)),
-        ]);
+        // ── Helper: get K nearest nodes by haversine distance ────────────
+        const haversineDeg = (lat1, lng1, lat2, lng2) => {
+            const R = 6371, toR = x => x * Math.PI / 180;
+            const dLat = toR(lat2 - lat1), dLng = toR(lng2 - lng1);
+            const a = Math.sin(dLat/2)**2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLng/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        };
 
-        // Ensure at least one route was found
-        const primaryResult = { safest: safestResult, shortest: shortestResult, balanced: balancedResult }[mode]
-                           || safestResult || shortestResult || balancedResult;
+        const getKNearest = (lat, lng, k = 10) =>
+            nodes
+                .map(n => ({ node: n, dist: haversineDeg(lat, lng, n.latitude, n.longitude) }))
+                .sort((a, b) => a.dist - b.dist)
+                .slice(0, k)
+                .map(x => x.node);
 
-        if (!primaryResult) {
-            return res.status(404).json({
-                success : false,
-                message : 'No route found — the graph may be disconnected for these coordinates. Try major Pune junctions.',
-            });
+        // ── 3. Snap source & destination to nearest nodes ─────────────────
+        const srcCandidates  = getKNearest(sourceLat, sourceLng, 10);
+        const destCandidates = getKNearest(destLat,   destLng,   10);
+
+        if (srcCandidates.length === 0 || destCandidates.length === 0) {
+            return res.status(404).json({ success: false, message: 'No road nodes found near these coordinates.' });
         }
 
-        // ── 3. Extract blackspots along the primary route's path nodes ───
-        const { nodeMap } = buildGraph(nodes, roads, accidents);
-        const blackspots  = extractBlackspots(
-            primaryResult.pathNodeIds,
+        const primarySrc  = srcCandidates[0];   // The single nearest node
+        const primaryDest = destCandidates[0];
+
+        /**
+         * Build a route result, anchoring geometry to the EXACT user coordinates.
+         * Prepends [sourceLat, sourceLng] and appends [destLat, destLng] so
+         * the polyline always starts and ends at the user-selected points.
+         */
+        const runMode = (modeType, srcNode, dstNode) => {
+            const pathIds = runAstar(nodeMap, adjacency, srcNode.id, dstNode.id, modeType, vehicle);
+            if (!pathIds) return null;
+
+            const pathCoords = pathIds.map(id => [nodeMap[id].latitude, nodeMap[id].longitude]);
+
+            // Anchor to exact user coordinates
+            const geometry = [
+                [sourceLat, sourceLng],                          // exact start
+                ...pathCoords,
+                [destLat, destLng]                               // exact end
+            ];
+
+            let totalDist = 0, totalRisk = 0;
+            for (let i = 0; i < pathIds.length - 1; i++) {
+                const edge = adjacency[pathIds[i]]?.find(e => e.toId === pathIds[i + 1]);
+                if (edge) { totalDist += edge.distance; totalRisk += edge.risk; }
+            }
+            const durationMin = (totalDist / (vehicle === 'car' ? 30 : vehicle === 'bike' ? 18 : 5)) * 60;
+            return {
+                geometry,
+                distanceKm : totalDist.toFixed(2),
+                durationMin: durationMin.toFixed(1),
+                totalRisk  : Math.round(totalRisk),
+                pathNodeIds: pathIds
+            };
+        };
+
+        // ── 4. Try EXACT nearest pair first (no fallback, no consent needed) ──
+        let sourceNode = primarySrc, destNode = primaryDest;
+        let isApproximate = false, approxMessage = null;
+
+        let safestResult   = runMode('safest',   primarySrc, primaryDest);
+        let shortestResult = runMode('shortest', primarySrc, primaryDest);
+        let balancedResult = runMode('balanced', primarySrc, primaryDest);
+
+        // ── 5. If exact pair fails, try K-nearest fallback ────────────────
+        if (!safestResult && !shortestResult && !balancedResult) {
+            let found = false;
+
+            outerLoop:
+            for (const src of srcCandidates) {
+                for (const dst of destCandidates) {
+                    if (src.id === dst.id) continue;
+                    const testPath = runAstar(nodeMap, adjacency, src.id, dst.id, 'safest');
+                    if (testPath) {
+                        sourceNode     = src;
+                        destNode       = dst;
+                        safestResult   = runMode('safest',   src, dst);
+                        shortestResult = runMode('shortest', src, dst);
+                        balancedResult = runMode('balanced', src, dst);
+                        isApproximate  = true;
+                        approxMessage  = `No direct road path found between your exact locations. The nearest available route has been computed via "${src.name}" → "${dst.name}". The route still starts and ends at your selected points.`;
+                        found = true;
+                        break outerLoop;
+                    }
+                }
+            }
+
+            if (!found) {
+                return res.status(404).json({
+                    success: false,
+                    message: `No route found — the road graph has no connection between "${primarySrc.name}" and "${primaryDest.name}". Try major junctions like Shivajinagar, Kothrud, or Hadapsar.`
+                });
+            }
+        }
+
+        console.log(`📍 Snapped: "${sourceNode.name}" ➔ "${destNode.name}"${isApproximate ? ' (approximate)' : ''}`);
+
+        // ── 6. Extract blackspots from ALL routes ─────────────────────────
+        const allPathIds = new Set([
+            ...(safestResult?.pathNodeIds   || []),
+            ...(shortestResult?.pathNodeIds || []),
+            ...(balancedResult?.pathNodeIds || [])
+        ]);
+
+        const blackspots = extractBlackspots(
+            Array.from(allPathIds),
             roads,
             accidents,
             nodeMap,
             mode
         );
 
-        console.log(`✅ A* route (${mode}): ${primaryResult.distanceKm} km, ${primaryResult.durationMin} min, ${blackspots.length} blackspots`);
-
-        // ── 4. Build response ─────────────────────────────────────────────
+        // ── 7. Build response ─────────────────────────────────────────────
         const routes = {};
         if (safestResult)   routes.safest   = { geometry: safestResult.geometry,   distanceKm: safestResult.distanceKm,   durationMin: safestResult.durationMin,   totalRisk: safestResult.totalRisk };
         if (shortestResult) routes.shortest = { geometry: shortestResult.geometry, distanceKm: shortestResult.distanceKm, durationMin: shortestResult.durationMin, totalRisk: shortestResult.totalRisk };
         if (balancedResult) routes.balanced = { geometry: balancedResult.geometry, distanceKm: balancedResult.distanceKm, durationMin: balancedResult.durationMin, totalRisk: balancedResult.totalRisk };
 
+        const anyRoute = Object.values(routes)[0];
+        if (!anyRoute) {
+            return res.status(404).json({ success: false, message: 'No route variants could be built.' });
+        }
+
+        console.log(`✅ A* route: ${Object.keys(routes).length} variants, ${blackspots.length} blackspots${isApproximate ? ' [approximate]' : ''}`);
+
         return res.json({
-            success    : true,
-            algorithm  : 'A*',
+            success       : true,
+            algorithm     : 'A*',
             mode,
             routes,
             blackspots,
-            totalRisk  : primaryResult.totalRisk,
-            snapped    : {
-                source      : { name: primaryResult.sourceNode?.name, lat: primaryResult.sourceNode?.latitude, lng: primaryResult.sourceNode?.longitude },
-                destination : { name: primaryResult.destNode?.name,   lat: primaryResult.destNode?.latitude,   lng: primaryResult.destNode?.longitude   },
+            totalRisk     : anyRoute.totalRisk,
+            isApproximate,
+            approxMessage,
+            snapped: {
+                source      : { name: sourceNode.name, lat: sourceNode.latitude, lng: sourceNode.longitude },
+                destination : { name: destNode.name,   lat: destNode.latitude,   lng: destNode.longitude   },
             },
         });
 
@@ -167,8 +263,7 @@ exports.getBlackspots = async (req, res) => {
         const { data: accidents, error } = await supabase
             .from('accidents')
             .select('road_id, minor_count, major_count, fatal_count')
-            .order('fatal_count', { ascending: false })
-            .limit(50);
+            .order('fatal_count', { ascending: false });
 
         if (error) throw error;
 
@@ -192,10 +287,9 @@ exports.getBlackspots = async (req, res) => {
                 };
             })
             .filter(Boolean)
-            .sort((a, b) => b.risk - a.risk)
-            .slice(0, 15);
+            .sort((a, b) => b.risk - a.risk);
 
-        res.json(result);
+        res.json({ blackspots: result });
     } catch (e) {
         console.error('getBlackspots error:', e);
         res.json([]);

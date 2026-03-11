@@ -50,3 +50,17 @@ export async function computeAstarRoutes(source, destination, vehicle = 'car', m
 
     return data;
 }
+
+/**
+ * Fetch global blackspots for Pune city.
+ */
+export async function fetchBlackspots() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/blackspots`);
+        if (!response.ok) return [];
+        return await response.json();
+    } catch (err) {
+        console.error('Failed to fetch blackspots:', err);
+        return [];
+    }
+}

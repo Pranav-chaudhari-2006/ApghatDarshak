@@ -19,8 +19,26 @@ const useRouteStore = create(
             error: null,
             routeHistory: [], // Persistent history
 
-            setSource: (source) => set({ source, error: null }),
-            setDestination: (destination) => set({ destination, error: null }),
+            setSource: (source) => set({ 
+                source, 
+                error: null,
+                routeResult: null,
+                allRoutes: {},
+                blackspots: [],
+                isApproximate: false,
+                approxMessage: null,
+                snappedNodes: null
+            }),
+            setDestination: (destination) => set({ 
+                destination, 
+                error: null,
+                routeResult: null,
+                allRoutes: {},
+                blackspots: [],
+                isApproximate: false,
+                approxMessage: null,
+                snappedNodes: null
+            }),
             setMode: (mode) => set({ mode }),
             setVehicle: (vehicle) => set({ vehicle }),
             setRouteResult: (routeResult) => set({ routeResult }),
@@ -29,6 +47,11 @@ const useRouteStore = create(
             setShowBlackspots: (showBlackspots) => set({ showBlackspots }),
             setIsComputing: (isComputing) => set({ isComputing }),
             setError: (error) => set({ error }),
+            
+            isApproximate: false,
+            approxMessage: null,
+            snappedNodes: null,
+            setApproxInfo: (info) => set(info),
 
             saveRoute: (route, meta) => {
                 const historyItem = {

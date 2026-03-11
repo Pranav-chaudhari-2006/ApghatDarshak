@@ -9,7 +9,7 @@ import {
     MapControls,
     useMap
 } from './Map';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import useRouteStore from '../../store/useRouteStore';
 
 const PUNE_CENTER = [73.8567, 18.5204]; // [lng, lat] for MapLibre
@@ -84,7 +84,7 @@ const FitBounds = ({ geometry }) => {
 };
 
 const MapView = () => {
-    const { source, destination, mode, routeResult, allRoutes, blackspots, showBlackspots, setMode } = useRouteStore();
+    const { source, destination, mode, routeResult, allRoutes, blackspots, showBlackspots, setMode, isApproximate, approxMessage, setApproxInfo } = useRouteStore();
     const routeStyle = ROUTE_STYLES[mode] || ROUTE_STYLES.safest;
     const [hoveredRoute, setHoveredRoute] = useState(null);
 
@@ -100,14 +100,43 @@ const MapView = () => {
     // Extract alternative routes
     const secondaryRoutes = ['safest', 'shortest', 'balanced']
         .filter(m => m !== mode && allRoutes[m]?.geometry?.length > 1)
-        .map(m => ({
+        .map((m) => ({
             id: m,
             style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
             coords: allRoutes[m].geometry.map(([lat, lng]) => [lng, lat])
         }));
 
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full relative">
+            
+            {/* ── Approximate Route Consent Popup on Map ── */}
+            <AnimatePresence>
+                {isApproximate && hasRoute && (
+                    <motion.div
+                        key="approx-map-notice"
+                        initial={{ opacity: 0, y: -20, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -20, scale: 0.96 }}
+                        className="absolute top-6 left-1/2 -translate-x-1/2 z-1000 max-w-[420px] rounded-2xl border border-amber-500/30 bg-amber-500/10 backdrop-blur-xl px-5 py-4 flex items-start gap-3 shadow-[0_8px_32px_rgba(245,158,11,0.15)]"
+                    >
+                        <div className="mt-0.5 w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-amber-400 text-[12px] font-black">!</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-amber-400 mb-1.5">Approximated Connection</p>
+                            <p className="text-[12px] text-amber-100/90 leading-relaxed font-outfit">{approxMessage || 'An approximate route was computed as no direct road connection was found.'}</p>
+                        </div>
+                        <button
+                            onClick={() => setApproxInfo({ isApproximate: false })}
+                            className="w-6 h-6 rounded-full bg-amber-500/20 hover:bg-amber-500/40 flex items-center justify-center text-amber-300 hover:text-white transition-colors shrink-0 mt-0.5 ml-2"
+                            title="Dismiss"
+                        >
+                            <span className="text-[10px] font-black leading-none">✕</span>
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <Map center={PUNE_CENTER} zoom={12} className="w-full h-full">
                 <MapControls position="bottom-right" showZoom showLocate showFullscreen showGlobe show3D />
 
@@ -122,7 +151,7 @@ const MapView = () => {
                         coordinates={route.coords}
                         color={SECONDARY_COLOR}
                         width={5}
-                        opacity={0.4}
+                        opacity={0.35}
                         dashArray={route.style.dashArray}
                         interactive={true}
                         onClick={() => setMode(route.id)}

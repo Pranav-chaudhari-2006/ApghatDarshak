@@ -157,20 +157,28 @@ function buildGraph(nodes, roads, accidents) {
 // WEIGHT & HEURISTIC FUNCTIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Edge traversal cost for each routing mode.
- *
- * shortest : pure distance — heuristic = haversine distance → admissible ✅
- * safest   : risk-primary  — heuristic = 0 (can't estimate future risk) → admissible ✅
- * balanced : normalised sum — heuristic = normalised haversine → admissible ✅
- */
-function edgeWeight(edge, mode) {
+function edgeWeight(edge, mode, vehicle) {
     const { distance, risk } = edge;
+    
+    // Slight penalties to break ties and simulate vehicle road preferences
+    let distMultiplier = 1.0;
+    const isLongEdge = distance > 1.0; 
+
+    if (vehicle === 'walk') {
+        distMultiplier = isLongEdge ? 2.5 : 1.0; // pedestrian detours long stretches
+    } else if (vehicle === 'bike') {
+        distMultiplier = isLongEdge ? 1.5 : 0.9; // bikes prefer shorter granular paths
+    } else if (vehicle === 'car') {
+        distMultiplier = isLongEdge ? 0.8 : 1.2; // cars prefer straight, long segments
+    }
+
+    const modifiedDist = distance * distMultiplier;
+
     switch (mode) {
-        case 'shortest': return distance;
-        case 'safest':   return (risk > 0 ? risk : 0.1) + 0.001 * distance;
-        case 'balanced': return (distance / 5) + (risk / 10);
-        default:         return distance;
+        case 'shortest': return modifiedDist;
+        case 'safest':   return (risk > 0 ? risk : 0.1) + 0.001 * modifiedDist;
+        case 'balanced': return (modifiedDist / 5) + (risk / 10);
+        default:         return modifiedDist;
     }
 }
 
@@ -178,8 +186,8 @@ function heuristic(node, goal, mode) {
     const dist = haversine(node.latitude, node.longitude, goal.latitude, goal.longitude);
     switch (mode) {
         case 'shortest': return dist;
-        case 'safest':   return 0;            // Dijkstra-like for risk minimisation
-        case 'balanced': return dist / 5;     // matches balanced normalisation
+        case 'safest':   return 0;            
+        case 'balanced': return dist / 5;     
         default:         return dist;
     }
 }
@@ -193,15 +201,15 @@ function heuristic(node, goal, mode) {
  * Returns ordered array of node IDs forming the optimal path, or null if
  * no path exists (disconnected graph).
  */
-function runAstar(nodeMap, adjacency, sourceId, goalId, mode) {
+function runAstar(nodeMap, adjacency, sourceId, goalId, mode, vehicle = 'car') {
     if (sourceId === goalId) return [sourceId];
 
     const goalNode = nodeMap[goalId];
     if (!goalNode) return null;
 
     const openSet  = new MinHeap();
-    const gScore   = {};    // cheapest known cost from source → node
-    const cameFrom = {};    // parent map for path reconstruction
+    const gScore   = {};    
+    const cameFrom = {};    
     const closed   = new Set();
 
     for (const id of Object.keys(nodeMap)) gScore[id] = Infinity;
@@ -213,7 +221,6 @@ function runAstar(nodeMap, adjacency, sourceId, goalId, mode) {
         const { id: cur } = openSet.pop();
 
         if (cur === goalId) {
-            // Reconstruct path ← follow cameFrom chain
             const path = [];
             let node = goalId;
             while (node !== undefined) {
@@ -230,7 +237,7 @@ function runAstar(nodeMap, adjacency, sourceId, goalId, mode) {
             const nb = edge.toId;
             if (closed.has(nb) || !nodeMap[nb]) continue;
 
-            const g = gScore[cur] + edgeWeight(edge, mode);
+            const g = gScore[cur] + edgeWeight(edge, mode, vehicle);
             if (g < (gScore[nb] ?? Infinity)) {
                 cameFrom[nb] = cur;
                 gScore[nb]   = g;
@@ -240,7 +247,7 @@ function runAstar(nodeMap, adjacency, sourceId, goalId, mode) {
         }
     }
 
-    return null; // No path found — disconnected graph
+    return null; 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -350,4 +357,4 @@ function extractBlackspots(pathNodeIds, roads, accidents, nodeMap, mode) {
     return results.sort((a, b) => b.risk - a.risk).slice(0, 50);
 }
 
-module.exports = { computeRoute, extractBlackspots, buildGraph, findNearestNode, haversine };
+module.exports = { computeRoute, extractBlackspots, buildGraph, findNearestNode, haversine, runAstar };

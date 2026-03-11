@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Globe from 'react-globe.gl';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
+import useAuthStore from '../store/useAuthStore';
 
 const Landing = () => {
     const navigate = useNavigate();
@@ -46,56 +47,46 @@ const Landing = () => {
         const planetsGroup = new THREE.Group();
         const loader = new THREE.TextureLoader();
 
-        // 45 Procedurally generated planets with various sizes, distances, and orbital tilts
+        // 14 solar system bodies with realistic colors, sizes, varied orbital planes and segregated distances
         const planetConfigs = [
-            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', color: 0xffffff, roughness: 0.9, metalness: 0.0, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', bumpScale: 2.0, emissive: 0x000000 },
-            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k_color.jpg', color: 0xffaa88, roughness: 0.8, metalness: 0.2, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k_normal.jpg', bumpScale: 1.5, emissive: 0x000000 },
-            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/jupiter.jpg', color: 0xffffff, roughness: 0.4, metalness: 0.1, bump: null, bumpScale: 0.0, emissive: 0x000000 },
-            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/venus_surface_2048.jpg', color: 0xffddaa, roughness: 0.6, metalness: 0.1, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/venus_surface_2048.jpg', bumpScale: 1.2, emissive: 0x000000 },
-            { map: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg', color: 0xffffff, roughness: 0.6, metalness: 0.3, bump: '//unpkg.com/three-globe/example/img/earth-topology.png', bumpScale: 4.0, emissive: 0x000000 },
-            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', color: 0x88ffaa, roughness: 0.9, metalness: 0.4, bump: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', bumpScale: 3.0, emissive: 0x002200 }, // Toxic green planet
-            { map: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/jupiter.jpg', color: 0x88ccff, roughness: 0.2, metalness: 0.5, bump: null, bumpScale: 0.0, emissive: 0x001133 }, // Ice gas giant
-            { map: '//unpkg.com/three-globe/example/img/earth-dark.jpg', color: 0xff5522, roughness: 0.8, metalness: 0.3, bump: '//unpkg.com/three-globe/example/img/earth-topology.png', bumpScale: 5.0, emissive: 0x330000 }, // Volcanic magma planet
+            // name,            color,      size,  dist,  speed,   tiltX, tiltZ, rings, emissive
+            { name: 'Mercury',  color: 0x888888, r: 2.2,  dist: 200, speed: 0.009, tiltX: 0.02,  tiltZ: 0.01,  hasRings: false, emissive: 0x000000 },
+            { name: 'Venus',    color: 0xE3BB76, r: 3.5,  dist: 280, speed: 0.006, tiltX: -0.01, tiltZ: 0.02,  hasRings: false, emissive: 0x1a0a00 },
+            { name: 'Moon',     color: 0xCCCCCC, r: 2.0,  dist: 360, speed: 0.014, tiltX: 0.05,  tiltZ: -0.02, hasRings: false, emissive: 0x000000 },
+            { name: 'Mars',     color: 0xC1440E, r: 3.0,  dist: 440, speed: 0.005, tiltX: 0.03,  tiltZ: 0.04,  hasRings: false, emissive: 0x060000 },
+            { name: 'Vesta',    color: 0x776655, r: 1.5,  dist: 520, speed: 0.004, tiltX: 0.08,  tiltZ: 0.05,  hasRings: false, emissive: 0x000000 },
+            { name: 'Ceres',    color: 0x887766, r: 1.8,  dist: 600, speed: 0.003, tiltX: -0.06, tiltZ: 0.03,  hasRings: false, emissive: 0x000000 },
+            { name: 'Jupiter',  color: 0xC88B3A, r: 11.0, dist: 680, speed: 0.002, tiltX: 0.01,  tiltZ: 0.01,  hasRings: true,  emissive: 0x0d0800, ringColor: 0x886644 },
+            { name: 'Io',       color: 0xF4E26A, r: 2.2,  dist: 760, speed: 0.007, tiltX: 0.04,  tiltZ: -0.03, hasRings: false, emissive: 0x040200 },
+            { name: 'Europa',   color: 0xC8B89A, r: 2.0,  dist: 840, speed: 0.006, tiltX: -0.03, tiltZ: 0.02,  hasRings: false, emissive: 0x000000 },
+            { name: 'Saturn',   color: 0xEAD6B8, r: 9.5,  dist: 920, speed: 0.0015,tiltX: 0.05,  tiltZ: 0.03,  hasRings: true,  emissive: 0x0a0800, ringColor: 0xC2A45A },
+            { name: 'Titan',    color: 0xD4882E, r: 2.5,  dist: 1000,speed: 0.005, tiltX: 0.07,  tiltZ: -0.05, hasRings: false, emissive: 0x050200 },
+            { name: 'Uranus',   color: 0x4B70DD, r: 6.5,  dist: 1080,speed: 0.001, tiltX: 1.57,  tiltZ: 0.05,  hasRings: true,  emissive: 0x001122, ringColor: 0x99AABB },
+            { name: 'Neptune',  color: 0x274687, r: 6.0,  dist: 1160,speed: 0.0009,tiltX: 0.02,  tiltZ: -0.01, hasRings: true,  emissive: 0x000822, ringColor: 0x445566 },
+            { name: 'Pluto',    color: 0xAA8866, r: 1.6,  dist: 1240,speed: 0.0007,tiltX: 0.15,  tiltZ: 0.10,  hasRings: false, emissive: 0x000000 },
         ];
 
-        const planetData = [];
-        
-        for (let i = 0; i < 8; i++) {
-            const cfg = planetConfigs[i];
-            planetData.push({
-                name: `P${i}`,
-                r: 4.5 + Math.random() * 5.0, 
-                dist: 180 + Math.random() * 600, 
-                speed: 0.004 + Math.random() * 0.008, 
-                hasRings: Math.random() > 0.6,
-                orbitTiltX: (Math.random() - 0.5) * 0.4, 
-                orbitTiltZ: (Math.random() - 0.5) * 0.4,
-                ...cfg
-            });
-        }
-
-        const planetMeshes = planetData.map(p => {
-            const geo = new THREE.SphereGeometry(p.r, 64, 64); // Higher segment count for hyperrealism
+        const planetMeshes = planetConfigs.map(p => {
+            const geo = new THREE.SphereGeometry(p.r, 48, 48);
             const mat = new THREE.MeshStandardMaterial({
                 color: p.color,
-                map: loader.load(p.map),
-                roughness: p.roughness,
-                metalness: p.metalness,
-                bumpMap: p.bump ? loader.load(p.bump) : null,
-                bumpScale: p.bumpScale,
+                roughness: 0.7,
+                metalness: 0.1,
                 emissive: p.emissive,
+                emissiveIntensity: 0.3,
                 flatShading: false
             });
 
             const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.y = Math.random() * Math.PI * 2; // randomise initial rotation
 
             if (p.hasRings) {
-                const ringGeo = new THREE.RingGeometry(p.r * 1.5, p.r * 2.8, 64);
-                const ringMat = new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
+                const ringGeo = new THREE.RingGeometry(p.r * 1.4, p.r * 2.5, 64);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: p.ringColor || 0xffffff,
                     side: THREE.DoubleSide,
                     transparent: true,
-                    opacity: 0.2
+                    opacity: 0.35
                 });
                 const ring = new THREE.Mesh(ringGeo, ringMat);
                 ring.rotation.x = Math.PI / 2.5;
@@ -104,9 +95,9 @@ const Landing = () => {
 
             // Pivot for tilted orbits
             const pivot = new THREE.Group();
-            pivot.rotation.x = p.orbitTiltX;
-            pivot.rotation.z = p.orbitTiltZ;
-            
+            pivot.rotation.x = p.tiltX;
+            pivot.rotation.z = p.tiltZ;
+
             mesh.position.x = p.dist;
             pivot.add(mesh);
             planetsGroup.add(pivot);
@@ -114,6 +105,7 @@ const Landing = () => {
             return { pivot, mesh, ...p, angle: Math.random() * Math.PI * 2 };
         });
 
+        const planetData = planetMeshes; // alias for animation loop
         scene.add(planetsGroup);
 
         // 2. Create Realistic Stone (Asteroid)
@@ -166,10 +158,9 @@ const Landing = () => {
 
         let reqId;
         const startTime = Date.now();
-        const ASTEROID_DELAY = 3500; // 3.5s delay
-        const ASTEROID_IMPACT_TIME = 7000; // Realistically slower diagonal sweep
-        const START_POS = new THREE.Vector3(-1800, 1800, 600); // High top-left
-        const END_POS = new THREE.Vector3(0, 0, 0); // Origin (Earth)
+        const ASTEROID_DELAY = 2000; // 2s moderate delay
+        const ASTEROID_IMPACT_TIME = 5500; // 5.5s total impact duration (slower speed)
+        const START_POS = new THREE.Vector3(-1800, 1800, 600); 
 
         // Position completely out of view initially
         asteroid.position.copy(START_POS);
@@ -193,10 +184,15 @@ const Landing = () => {
             }
 
             const elapsed = totalElapsed - ASTEROID_DELAY;
+            const EARTH_RADIUS = 100;
 
             if (elapsed < ASTEROID_IMPACT_TIME) {
                 const progress = elapsed / ASTEROID_IMPACT_TIME;
-                const currentPos = new THREE.Vector3().lerpVectors(START_POS, END_POS, progress);
+                
+                // Calculate impact point on the surface (radius 100 + half asteroid size)
+                const impactTarget = new THREE.Vector3().copy(START_POS).normalize().multiplyScalar(EARTH_RADIUS + 5);
+                const currentPos = new THREE.Vector3().lerpVectors(START_POS, impactTarget, progress);
+                
                 asteroid.position.copy(currentPos);
                 asteroid.rotation.x += 0.08;
                 asteroid.rotation.y += 0.1;
@@ -205,7 +201,7 @@ const Landing = () => {
                 trailParticles.forEach((p, idx) => {
                     const delay = idx * 0.0008;
                     const tProgress = Math.max(0, progress - delay);
-                    const pPos = new THREE.Vector3().lerpVectors(START_POS, END_POS, tProgress);
+                    const pPos = new THREE.Vector3().lerpVectors(START_POS, impactTarget, tProgress);
 
                     // Jitter for heat turbulence effect scaling by tail position
                     const jitter = (1 - tProgress) * 25;
@@ -221,8 +217,18 @@ const Landing = () => {
 
                 reqId = requestAnimationFrame(animate);
             } else {
+                // Impact / Vibration effect
+                const shakeAmplitude = 15;
+                const shake = () => {
+                    const shakeX = (Math.random() - 0.5) * shakeAmplitude;
+                    const shakeY = (Math.random() - 0.5) * shakeAmplitude;
+                    globeEl.current.controls().object.position.x += shakeX;
+                    globeEl.current.controls().object.position.y += shakeY;
+                };
+                shake();
+                
                 setBlackout(true);
-                setTimeout(() => navigate('/auth'), 800);
+                setTimeout(() => navigate('/auth'), 1200);
             }
         };
 

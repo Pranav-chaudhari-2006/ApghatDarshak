@@ -3,9 +3,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Activity, ShieldAlert, Zap, Info,
     BarChart3, PieChart, ChevronRight, Menu, MapPin, MapPinOff,
-    History, Trash2, Clock, Navigation, Shield
+    History, Trash2, Clock, Navigation, Shield, X, Network
 } from 'lucide-react';
 import useRouteStore from '../../store/useRouteStore';
+import ZoneTree3D from '../UI/ZoneTree3D';
+
+const Tooltip = ({ text, children, className = "" }) => {
+    const [isVisible, setIsVisible] = useState(false);
+    return (
+        <div className={`relative ${className}`} onMouseEnter={() => setIsVisible(true)} onMouseLeave={() => setIsVisible(false)}>
+            {children}
+            <AnimatePresence>
+                {isVisible && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: -5, scale: 1 }}
+                        exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                        className="absolute left-1/2 -translate-x-1/2 -top-10 px-3 py-1 bg-slate-800 border border-white/10 rounded-lg text-[10px] font-bold text-white uppercase tracking-widest whitespace-nowrap z-50 pointer-events-none"
+                    >
+                        {text}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
 
 const LEGEND = [
     { color: '#10B981', symbol: '──', label: 'Primary Safety', desc: 'Secure corridor' },
@@ -18,9 +40,10 @@ const RightSidebar = () => {
     const [open, setOpen] = useState(true);
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'history'
     const { 
-        blackspots, showBlackspots, setShowBlackspots, 
+        source, blackspots, showBlackspots, setShowBlackspots, 
         routeHistory, clearHistory, setSource, setDestination 
     } = useRouteStore();
+    const [showTree, setShowTree] = useState(false);
 
     const loadHistoryRoute = (item) => {
         setSource(item.source);
@@ -28,28 +51,93 @@ const RightSidebar = () => {
     };
 
     return (
-        <div className="absolute top-[96px] right-6 bottom-6 z-1000 flex items-start justify-end pointer-events-none overflow-hidden" style={{ width: open ? 'auto' : '100px' }}>
+        <>
+            {/* Zone Tree 3D Modal/Popup - Moved to top level for correct layering */}
+            <AnimatePresence>
+                {showTree && (
+                    <div className="fixed inset-0 z-9999 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl pointer-events-auto">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                            className="w-[600px] h-[650px] bg-black rounded-[48px] border border-white/10 shadow-3xl relative overflow-hidden flex flex-col"
+                        >
+                            <div className="absolute top-10 left-10 right-10 flex items-center justify-between z-100">
+                                <div>
+                                    <h3 className="text-base font-black text-white uppercase tracking-[0.4em] mb-1.5 font-outfit">Safety N-ary Tree</h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest opacity-80">Fatality Hierarchy Matrix</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setShowTree(false)}
+                                    className="w-14 h-14 rounded-3xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all hover:rotate-90 hover:scale-110 active:scale-95 group border border-white/5"
+                                >
+                                    <X size={24} className="group-hover:text-rose-500 transition-colors" />
+                                </button>
+                            </div>
 
-            {/* Toggle Button for when sidebar is hidden */}
-            {!open && (
-                <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setOpen(true)}
-                    className="absolute right-0 top-0 w-12 h-12 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-xl flex items-center justify-center text-slate-800 dark:text-white pointer-events-auto z-10"
+                            <div className="flex-1 w-full bg-[#020202]">
+                                <ZoneTree3D blackspots={blackspots} />
+                            </div>
+
+                            <div className="p-6 bg-black/80 border-t border-white/5 backdrop-blur-3xl">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex gap-5">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]" />
+                                            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">High Risk</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]" />
+                                            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Medium Risk</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]" />
+                                            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Low Risk</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em]">
+                                        Drag · Orbit · Scroll
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <div className="absolute top-[96px] right-6 bottom-6 z-1000 flex items-start justify-end pointer-events-none overflow-hidden" style={{ width: open ? 'auto' : '120px' }}>
+                {/* Pulsing Analysis Restore Button — visible when console is hidden */}
+                <AnimatePresence>
+                {!open && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.7, x: 30 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.7, x: 30 }}
+                        className="absolute right-0 top-0 pointer-events-auto"
+                    >
+                        {/* Outer glow ring */}
+                        <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+                        <button
+                            onClick={() => setOpen(true)}
+                            title="Open Analysis Console"
+                            className="relative w-14 h-14 rounded-full bg-slate-900 border-2 border-emerald-500/60 shadow-[0_0_24px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center gap-0.5 text-white hover:scale-110 active:scale-95 transition-transform"
+                        >
+                            <Activity size={20} className="text-emerald-400" />
+                            <span className="text-[7px] font-black uppercase tracking-widest text-emerald-400">Data</span>
+                        </button>
+                    </motion.div>
+                )}
+                </AnimatePresence>
+
+                <motion.div
+                    initial={{ x: 400, opacity: 0 }}
+                    animate={{ x: open ? 0 : 400, opacity: open ? 1 : 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                    className="pointer-events-auto h-full w-[340px]"
                 >
-                    <Activity size={20} />
-                </motion.button>
-            )}
-
-            <motion.div
-                initial={{ x: 400, opacity: 0 }}
-                animate={{ x: open ? 0 : 400, opacity: open ? 1 : 0 }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="pointer-events-auto h-full w-[340px]"
-            >
                 {/* Sidebar Container */}
                 <div className="w-full h-full glass-card rounded-[32px] p-6 shadow-2xl flex flex-col overflow-hidden relative border border-slate-200/50 dark:border-white/10">
 
@@ -65,12 +153,14 @@ const RightSidebar = () => {
                                     <h2 className="text-sm font-black text-slate-900 dark:text-white leading-none">Console Data</h2>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setOpen(false)}
-                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                            >
-                                <ChevronRight size={18} />
-                            </button>
+                            <Tooltip text="Hide Console">
+                                <button
+                                    onClick={() => setOpen(false)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                >
+                                    <ChevronRight size={18} />
+                                </button>
+                            </Tooltip>
                         </div>
 
                         {/* Tab Switcher */}
@@ -93,7 +183,7 @@ const RightSidebar = () => {
                     </div>
 
                     {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto no-scrollbar py-6 space-y-8">
+                    <div className="flex-1 overflow-y-auto no-scrollbar py-6 space-y-8 min-h-0">
                         {activeTab === 'analytics' ? (
                             <>
                                 {/* Risk Distribution */}
@@ -127,22 +217,18 @@ const RightSidebar = () => {
                                         <Shield size={14} className="text-slate-400" />
                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Area Safety Rating</span>
                                     </div>
-                                    <div className="space-y-3">
-                                        {[
-                                            { name: 'Shivajinagar', risk: 'Low', color: 'emerald' },
-                                            { name: 'Kothrud', risk: 'Low', color: 'emerald' },
-                                            { name: 'Hadapsar', risk: 'High', color: 'rose' },
-                                            { name: 'Pimpri', risk: 'Medium', color: 'amber' }
-                                        ].map(zone => (
-                                            <div key={zone.name} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-white/5">
-                                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{zone.name}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-1.5 h-1.5 rounded-full bg-${zone.color}-500 shadow-sm shadow-${zone.color}-500/50`} />
-                                                    <span className={`text-[9px] font-black uppercase tracking-tighter text-${zone.color}-500`}>{zone.risk} Risk</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <button 
+                                        onClick={() => setShowTree(true)}
+                                        className="w-full flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 transition-all shadow-sm hover:shadow-emerald-500/20 group"
+                                    >
+                                        <div className="w-12 h-12 rounded-[20px] bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-active:scale-95 transition-transform duration-300">
+                                            <Network size={24} />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-1">Explore 3D Tree</p>
+                                            <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/60 font-bold uppercase tracking-widest">Interactive Risk Node Map</p>
+                                        </div>
+                                    </button>
                                 </div>
 
                                 {/* System Legend */}
@@ -173,31 +259,33 @@ const RightSidebar = () => {
                                         <MapPin size={14} className="text-slate-400" />
                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Map Visibility</span>
                                     </div>
-                                    <button
-                                        onClick={() => setShowBlackspots(!showBlackspots)}
-                                        className={`w-full flex items-center justify-between p-4 rounded-[24px] border transition-all ${
-                                            showBlackspots 
-                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
-                                            : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-white/5 text-slate-500'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            {showBlackspots ? <MapPin size={18} /> : <MapPinOff size={18} />}
-                                            <div className="text-left cursor-pointer">
-                                                <p className="text-xs font-black leading-none">{showBlackspots ? 'Blackspots Visible' : 'Blackspots Hidden'}</p>
-                                                <p className="text-[9px] font-bold mt-1 opacity-70 uppercase tracking-wider">
-                                                    {showBlackspots ? 'Showing on map' : 'Markers disabled'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${showBlackspots ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                                            <motion.div 
-                                                className="w-4 h-4 bg-white rounded-full shadow-sm"
-                                                animate={{ x: showBlackspots ? 16 : 0 }}
-                                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                            />
-                                        </div>
-                                    </button>
+                                        <Tooltip text={showBlackspots ? 'Hide Risk' : 'Show Risk'}>
+                                            <button
+                                                onClick={() => setShowBlackspots(!showBlackspots)}
+                                                className={`w-full flex items-center justify-between p-4 rounded-[24px] border transition-all ${
+                                                    showBlackspots 
+                                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                                                    : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-white/5 text-slate-500'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {showBlackspots ? <MapPin size={18} /> : <MapPinOff size={18} />}
+                                                    <div className="text-left cursor-pointer">
+                                                        <p className="text-xs font-black leading-none">{showBlackspots ? 'Blackspots Visible' : 'Blackspots Hidden'}</p>
+                                                        <p className="text-[9px] font-bold mt-1 opacity-70 uppercase tracking-wider">
+                                                            {showBlackspots ? 'Showing on map' : 'Markers disabled'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className={`w-10 h-6 rounded-full p-1 transition-colors ${showBlackspots ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                    <motion.div 
+                                                        className="w-4 h-4 bg-white rounded-full shadow-sm"
+                                                        animate={{ x: showBlackspots ? 16 : 0 }}
+                                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                                    />
+                                                </div>
+                                            </button>
+                                        </Tooltip>
                                 </div>
                             </>
                         ) : (
@@ -294,6 +382,7 @@ const RightSidebar = () => {
                 </div>
             </motion.div>
         </div>
+    </>
     );
 };
 

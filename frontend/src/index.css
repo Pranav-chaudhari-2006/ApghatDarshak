@@ -152,3 +152,15 @@ h1, h2, h3, h4, h5, h6, .font-outfit {
 .btn-secondary {
   @apply bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all active:scale-[0.97] shadow-sm;
 }
+
+/* Minimal Scrollbar utility */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
