@@ -7,7 +7,26 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+// Ensure the backend only blindly trusts your exact Vercel frontend and local development server
+const allowedOrigins = [
+    'http://localhost:5173', 
+    'https://apghatdarshak.vercel.app', 
+    process.env.FRONTEND_URL // Fallback if you add custom domains later via Render Env Vars
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests) if needed, 
+        // in production you might want to switch `!origin` to block them.
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS Policy Block: Unauthorized Access'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+}));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
