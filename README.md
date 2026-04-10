@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://img.shields.io/badge/Status-Active-success.svg" alt="Project Status" />
+  <img src="https://img.shields.io/badge/Status-Deployed-success.svg" alt="Project Status" />
   <img src="https://img.shields.io/badge/Version-1.0.0-blue.svg" alt="Version" />
   <img src="https://img.shields.io/badge/License-MIT-orange.svg" alt="License" />
   <img src="https://img.shields.io/badge/React-19.0-61dafb.svg?logo=react" alt="React" />
@@ -10,6 +10,11 @@
 
 <h1 align="center">ApghatDarshak</h1>
 <p align="center"><b>Risk-Aware Navigation & Accident Blackspot Detection System 🛡️🚗</b></p>
+<p align="center">
+  <a href="https://apghatdarshak.vercel.app/">
+    <img src="https://img.shields.io/badge/🔴_Live_Site-Launch_App-FF0000?style=for-the-badge&logo=vercel" alt="Launch App">
+  </a>
+</p>
 
 ---
 
@@ -109,38 +114,21 @@ root/
 
 ---
 
-## 🚀 Deployment Guide (What to do next)
+## 🚀 Production Infrastructure
 
-Since the frontend and backend are completely decoupled, you will need to deploy them to two separate hosting providers. 
+This project is fully deployed and accessible over the internet utilizing a decoupled architecture:
 
-### Step 1: Deploy the Backend (API)
-Recommended Providers: **Render**, **Railway**, or **Fly.io**
-1. Sign up for [Render.com](https://render.com/) or Railway.
-2. Create a new **Web Service**.
-3. Connect your GitHub repository.
-4. Set the Root Directory to `backend` (if supported) or explicitly specify the start command as `cd backend && npm start` / `node server.js`.
-5. Add your Environment Variables:
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-   - `PORT=5000` (Optional depending on provider)
-6. Deploy! Once finished, keep the new API URL safe (e.g. `https://apghatdarshak-api.onrender.com`).
-
-### Step 2: Deploy the Frontend (Client App)
-Recommended Providers: **Vercel** or **Netlify**
-1. Sign up for [Vercel](https://vercel.com/) (Most recommended for Vite/React Apps).
-2. Create a new Project and import your GitHub repository.
-3. Edit the **Root Directory** setting to `frontend`.
-4. Ensure the Framework Preset is set to **Vite**.
-5. Add your Environment Variables in the Vercel dashboard:
-   - `VITE_API_BASE_URL=https://<your-backend-render-url>.com/api` *(Critical: Change localhost to your new live backend URL!)*
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-6. Click Deploy.
-
-### Step 3: Database Settings
-- Your **Supabase Database** is already hosted in the cloud. You do NOT need to redeploy the database.
-
-> **🎉 Congratulations!** Once both Vercel and Render finalize building, your application will be live over the internet!
+- **Frontend (Client App):** Deployed on **Vercel**
+  - Live Link: [https://apghatdarshak.vercel.app/](https://apghatdarshak.vercel.app/)
+  - Features high-performance edge caching, modern Vite build optimizations, and automated CI/CD pipeline integration from the main branch.
+  
+- **Backend (API Base):** Deployed on **Render** 
+  - Live API: `https://apghatdarshak.onrender.com`
+  - Restricts access securely to the verified frontend domain via strict CORS policy protocols. Ensures secure routing computations.
+  
+- **Database (Cloud Storage):** Hosted on **Supabase**
+  - Manages global session state through Postgres RLS (Row Level Security).
+  - Handles the raw traffic logging and risk metric parameters synchronously via connected Environment Auth variables globally stored on the providers.
 
 ---
 *Developed for safety-first smart city navigation.*
