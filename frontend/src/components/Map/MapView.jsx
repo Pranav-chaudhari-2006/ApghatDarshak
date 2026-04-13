@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Map,
     MapMarker,
@@ -64,15 +64,18 @@ function getBlackspotStyle(spot) {
 }
 
 // Helper — fit map bounds to the computed route
+// geometry is an array of [lat, lng] pairs (as returned by the backend)
 const FitBounds = ({ geometry }) => {
     const { map, isLoaded } = useMap();
 
     useEffect(() => {
         if (isLoaded && map && geometry?.length > 1) {
+            // geometry[i] = [lat, lng]
+            // MapLibre fitBounds expects [[minLng, minLat], [maxLng, maxLat]]
             const bounds = geometry.reduce(
-                (acc, coord) => [
-                    [Math.min(acc[0][0], coord[1]), Math.min(acc[0][1], coord[0])],
-                    [Math.max(acc[1][0], coord[1]), Math.max(acc[1][1], coord[0])],
+                (acc, [lat, lng]) => [
+                    [Math.min(acc[0][0], lng), Math.min(acc[0][1], lat)],
+                    [Math.max(acc[1][0], lng), Math.max(acc[1][1], lat)],
                 ],
                 [[geometry[0][1], geometry[0][0]], [geometry[0][1], geometry[0][0]]]
             );
@@ -95,16 +98,24 @@ const MapView = () => {
     console.log(`🗺️ MapView render: ${blackspots.length} blackspots, showBlackspots=${showBlackspots}, hasRoute=${hasRoute}`);
 
     // Convert geometry from store [lat,lng] → MapLibre [lng,lat]
-    const mapRouteCoords = routeResult?.geometry?.map(([lat, lng]) => [lng, lat]) || [];
+    // Memoized to avoid creating a new array reference on every render
+    const mapRouteCoords = useMemo(
+        () => routeResult?.geometry?.map(([lat, lng]) => [lng, lat]) ?? [],
+        [routeResult]
+    );
     
-    // Extract alternative routes
-    const secondaryRoutes = ['safest', 'shortest', 'balanced']
-        .filter(m => m !== mode && allRoutes[m]?.geometry?.length > 1)
-        .map((m) => ({
-            id: m,
-            style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
-            coords: allRoutes[m].geometry.map(([lat, lng]) => [lng, lat])
-        }));
+    // Extract alternative routes (memoized for the same reason)
+    const secondaryRoutes = useMemo(
+        () =>
+            ['safest', 'shortest', 'balanced']
+                .filter(m => m !== mode && allRoutes[m]?.geometry?.length > 1)
+                .map((m) => ({
+                    id: m,
+                    style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
+                    coords: allRoutes[m].geometry.map(([lat, lng]) => [lng, lat])
+                })),
+        [mode, allRoutes]
+    );
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full relative">
