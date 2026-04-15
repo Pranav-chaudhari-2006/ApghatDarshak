@@ -34,8 +34,8 @@ app.use(cors({
     credentials: true,
 }));
 
-// Pre-flight for all routes (must come BEFORE other middleware)
-app.options('*', cors());
+// Pre-flight for all routes (regex wildcard — compatible with Express 4 & 5)
+app.options(/.*/, cors());
 
 // ── Body parsers ──────────────────────────────────────────────────────────────
 app.use(bodyParser.json({ limit: '50mb' }));
