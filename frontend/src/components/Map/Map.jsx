@@ -950,45 +950,64 @@ function MapRoute({
     const sourceId = `route-source-${id}`;
     const layerId = `route-layer-${id}`;
 
-    useEffect(() => {
-        if (!isLoaded || !map) return;
+    // Keep a ref to latest coordinates/paint props so style.load handler is always fresh
+    const coordsRef = useRef(coordinates);
+    coordsRef.current = coordinates;
+    const paintRef = useRef({ color, width, opacity, offset, dashArray });
+    paintRef.current = { color, width, opacity, offset, dashArray };
 
-        map.addSource(sourceId, {
+    const setupLayerAndSource = useCallback((mapInst) => {
+        if (!mapInst) return;
+        // Clean up stale layers first (no-throw)
+        try { if (mapInst.getLayer(layerId)) mapInst.removeLayer(layerId); } catch { /* */ }
+        try { if (mapInst.getSource(sourceId)) mapInst.removeSource(sourceId); } catch { /* */ }
+
+        const { color: c, width: w, opacity: o, offset: off, dashArray: da } = paintRef.current;
+
+        mapInst.addSource(sourceId, {
             type: "geojson",
             data: {
                 type: "Feature",
                 properties: {},
-                geometry: { type: "LineString", coordinates: [] },
+                geometry: { type: "LineString", coordinates: coordsRef.current.length >= 2 ? coordsRef.current : [] },
             },
         });
 
-        map.addLayer({
+        mapInst.addLayer({
             id: layerId,
             type: "line",
             source: sourceId,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-                "line-color": color,
-                "line-width": width,
-                "line-opacity": opacity,
-                "line-offset": offset,
-                ...(dashArray && { "line-dasharray": dashArray }),
+                "line-color": c,
+                "line-width": w,
+                "line-opacity": o,
+                "line-offset": off,
+                ...(da && { "line-dasharray": da }),
             },
         });
+    }, [layerId, sourceId]);
+
+    // Initial setup and cleanup
+    useEffect(() => {
+        if (!isLoaded || !map) return;
+
+        setupLayerAndSource(map);
+
+        // Re-add source+layer whenever the style is swapped (theme change)
+        const onStyleLoad = () => setupLayerAndSource(map);
+        map.on('style.load', onStyleLoad);
 
         return () => {
-            try {
-                if (map.getLayer(layerId)) map.removeLayer(layerId);
-                if (map.getSource(sourceId)) map.removeSource(sourceId);
-            } catch {
-                // ignore
-            }
+            map.off('style.load', onStyleLoad);
+            try { if (map.getLayer(layerId)) map.removeLayer(layerId); } catch { /* */ }
+            try { if (map.getSource(sourceId)) map.removeSource(sourceId); } catch { /* */ }
         };
-    }, [isLoaded, map]);
+    }, [isLoaded, map, setupLayerAndSource, layerId, sourceId]);
 
+    // Update coordinates whenever they change
     useEffect(() => {
         if (!isLoaded || !map || coordinates.length < 2) return;
-
         const source = map.getSource(sourceId);
         if (source) {
             source.setData({
@@ -999,16 +1018,15 @@ function MapRoute({
         }
     }, [isLoaded, map, coordinates, sourceId]);
 
+    // Update paint properties when they change
     useEffect(() => {
         if (!isLoaded || !map || !map.getLayer(layerId)) return;
-
         map.setPaintProperty(layerId, "line-color", color);
         map.setPaintProperty(layerId, "line-width", width);
         map.setPaintProperty(layerId, "line-opacity", opacity);
-        if (dashArray) {
-            map.setPaintProperty(layerId, "line-dasharray", dashArray);
-        }
-    }, [isLoaded, map, layerId, color, width, opacity, dashArray]);
+        map.setPaintProperty(layerId, "line-offset", offset ?? 0);
+        if (dashArray) map.setPaintProperty(layerId, "line-dasharray", dashArray);
+    }, [isLoaded, map, layerId, color, width, opacity, offset, dashArray]);
 
     useEffect(() => {
         if (!isLoaded || !map || !interactive) return;

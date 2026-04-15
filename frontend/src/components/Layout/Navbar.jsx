@@ -42,14 +42,13 @@ const Navbar = () => {
 
     const handleLogout = async () => {
         try {
-            await supabase.auth.signOut();
+            await supabase.auth.signOut(); // This triggers SIGNED_OUT in App.jsx's onAuthStateChange
             logout();
-            navigate('/auth');
+            navigate('/auth', { replace: true }); // replace removes dashboard from history stack
         } catch (error) {
             console.error('Error signing out:', error);
-            // Fallback
             logout();
-            navigate('/auth');
+            navigate('/auth', { replace: true });
         }
     };
 

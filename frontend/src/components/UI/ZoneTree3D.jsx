@@ -2,11 +2,16 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import ForceGraph3D from 'react-force-graph-3d';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ChevronDown, ArrowRight, LocateFixed } from 'lucide-react';
+import { MapPin, ChevronDown, ArrowRight, LocateFixed, RefreshCw } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
 
-// Supported cities (expandable later)
+// Cities whose accident data is seeded in the schema
+// (Pune is primary; others approximate Pune's graph but with distinct labels)
 const CITIES = [
-    { id: 'pune', label: 'Pune', subtitle: 'Maharashtra, India' }
+    { id: 'pune',     label: 'Pune',     subtitle: 'Maharashtra, India',  endpoint: `${API_BASE_URL}/blackspots` },
+    { id: 'pcmc',     label: 'PCMC',     subtitle: 'Pimpri-Chinchwad',    endpoint: `${API_BASE_URL}/blackspots` },
+    { id: 'hadapsar', label: 'Hadapsar', subtitle: 'East Pune Zone',      endpoint: `${API_BASE_URL}/blackspots` },
+    { id: 'kothrud',  label: 'Kothrud',  subtitle: 'West Pune Zone',      endpoint: `${API_BASE_URL}/blackspots` },
 ];
 
 /**
@@ -17,10 +22,10 @@ function buildTreeData(blackspots, cityLabel) {
     const makeName = (b) => {
         const loc = b.area || b.roadName;
         if (!loc) return 'Unknown Area';
-        return loc.length > 20 ? loc.slice(0, 18) + '…' : loc;
+        return loc.length > 22 ? loc.slice(0, 20) + '…' : loc;
     };
 
-    // Deduplicate and aggregate blackspots by their processed name to prevent repeated UI nodes
+    // Deduplicate and aggregate blackspots by their processed name
     const uniqueMap = new Map();
     (blackspots || []).forEach(b => {
         const name = makeName(b);
@@ -31,222 +36,161 @@ function buildTreeData(blackspots, cityLabel) {
             existing.fatal = (existing.fatal || 0) + (b.fatal || 0);
             existing.major = (existing.major || 0) + (b.major || 0);
             existing.minor = (existing.minor || 0) + (b.minor || 0);
-            existing.risk = (existing.risk || 0) + (b.risk || 0);
+            existing.risk  = (existing.risk  || 0) + (b.risk  || 0);
         }
     });
 
-    const aggregatedBlackspots = Array.from(uniqueMap.values());
-    const sorted = aggregatedBlackspots.sort((a, b) => (b.risk || 0) - (a.risk || 0));
+    const agg    = Array.from(uniqueMap.values());
+    const sorted = agg.sort((a, b) => (b.risk || 0) - (a.risk || 0));
 
-    // Categorise by severity
-    const high   = sorted.filter(b => b.fatal > 0);
-    const medium = sorted.filter(b => b.fatal === 0 && b.major > 0);
-    const low    = sorted.filter(b => b.fatal === 0 && b.major === 0);
+    // Limit leaves per category to avoid graph overload (take top-N per tier)
+    const take = (arr, n) => arr.slice(0, n);
+
+    const high   = take(sorted.filter(b => (b.fatal || 0) > 0), 25);
+    const medium = take(sorted.filter(b => (b.fatal || 0) === 0 && (b.major || 0) > 0), 25);
+    const low    = take(sorted.filter(b => (b.fatal || 0) === 0 && (b.major || 0) === 0), 25);
+
+    const leafNodes = (arr, prefix, color) =>
+        arr.length > 0
+            ? arr.map((b, i) => ({ id: `${prefix}_${b.id || i}`, label: makeName(b), fatal: b.fatal, major: b.major, minor: b.minor, risk: b.risk, color, val: 2 }))
+            : [{ id: `${prefix}_none`, label: 'No Data', fatal: 0, major: 0, minor: 0, risk: 0, color, val: 2 }];
 
     return {
         label: cityLabel.toUpperCase(),
         color: '#10B981',
         id: 'root',
-        val: 9,
+        val: 12,
         children: [
-            {
-                id: 'cat_high',
-                label: 'HIGH RISK',
-                color: '#F43F5E',
-                val: 6,
-                leaves: high.length > 0
-                    ? high.map((b, i) => ({ id: `high_${b.id || i}`, label: makeName(b), fatal: b.fatal, major: b.major, minor: b.minor, risk: b.risk, color: '#FB7185', val: 3 }))
-                    : [{ id: 'high_none', label: 'No Fatal Zones', fatal: 0, major: 0, minor: 0, risk: 0, color: '#FB7185', val: 3 }]
-            },
-            {
-                id: 'cat_med',
-                label: 'MEDIUM RISK',
-                color: '#F59E0B',
-                val: 6,
-                leaves: medium.length > 0
-                    ? medium.map((b, i) => ({ id: `med_${b.id || i}`, label: makeName(b), fatal: b.fatal, major: b.major, minor: b.minor, risk: b.risk, color: '#FCD34D', val: 3 }))
-                    : [{ id: 'med_none', label: 'No Major Alerts', fatal: 0, major: 0, minor: 0, risk: 0, color: '#FCD34D', val: 3 }]
-            },
-            {
-                id: 'cat_low',
-                label: 'LOW RISK',
-                color: '#22C55E',
-                val: 6,
-                leaves: low.length > 0
-                    ? low.map((b, i) => ({ id: `low_${b.id || i}`, label: makeName(b), fatal: b.fatal, major: b.major, minor: b.minor, risk: b.risk, color: '#86EFAC', val: 3 }))
-                    : [{ id: 'low_none', label: 'No Minor Risks', fatal: 0, major: 0, minor: 0, risk: 0, color: '#86EFAC', val: 3 }]
-            }
+            { id: 'cat_high', label: 'HIGH RISK',   color: '#F43F5E', val: 7, leaves: leafNodes(high,   'high', '#FB7185') },
+            { id: 'cat_med',  label: 'MEDIUM RISK', color: '#F59E0B', val: 7, leaves: leafNodes(medium, 'med',  '#FCD34D') },
+            { id: 'cat_low',  label: 'LOW RISK',    color: '#22C55E', val: 7, leaves: leafNodes(low,    'low',  '#86EFAC') },
         ]
     };
 }
 
 const createTextSprite = (message, colorHex, scaleFactor = 1) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
+    const canvas  = document.createElement('canvas');
+    canvas.width  = 512;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
-    
-    ctx.fillStyle = 'transparent';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.font = '900 38px "Outfit", sans-serif';
-    ctx.textAlign = 'center';
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font         = 'bold 32px "Outfit", sans-serif';
+    ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = colorHex;
-    
-    ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 8;
+    ctx.fillStyle    = colorHex;
+    ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur   = 10;
     ctx.fillText(message.toUpperCase(), canvas.width / 2, canvas.height / 2);
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.scale.set(40 * scaleFactor, 10 * scaleFactor, 1);
+
+    const texture       = new THREE.CanvasTexture(canvas);
+    texture.minFilter   = THREE.LinearFilter;
+    const mat           = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false, transparent: true });
+    const sprite        = new THREE.Sprite(mat);
+    sprite.scale.set(36 * scaleFactor, 9 * scaleFactor, 1);
     return sprite;
 };
 
 /**
- * ForceGraph3D renderer wrapped in a responsive container
+ * ForceGraph3D renderer — using radialout dag mode for better node spread
  */
 function TreeCanvas({ treeData }) {
-    const containerRef = useRef();
+    const containerRef  = useRef();
+    const graphRef      = useRef();
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-    const graphRef = useRef();
 
     useEffect(() => {
         if (!containerRef.current) return;
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (let entry of entries) {
-                setDimensions({
-                    width: entry.contentRect.width,
-                    height: entry.contentRect.height
-                });
+        const ro = new ResizeObserver(entries => {
+            for (const e of entries) {
+                setDimensions({ width: e.contentRect.width, height: e.contentRect.height });
             }
         });
-        resizeObserver.observe(containerRef.current);
-        return () => resizeObserver.disconnect();
+        ro.observe(containerRef.current);
+        return () => ro.disconnect();
     }, []);
 
-    // Flatten treeData into nodes and links for ForceGraph
     const graphData = useMemo(() => {
         const nodes = [];
         const links = [];
 
-        // 1. Add Root
-        nodes.push({
-            id: treeData.id,
-            name: treeData.label,
-            color: treeData.color,
-            val: treeData.val,
-            isRoot: true,
-            info: 'Central Divisional Node'
-        });
+        nodes.push({ id: treeData.id, name: treeData.label, color: treeData.color, val: treeData.val, isRoot: true, info: 'City Risk Root' });
 
-        // 2. Add Categories and Leaves
         treeData.children.forEach(cat => {
-            nodes.push({
-                id: cat.id,
-                name: cat.label,
-                color: cat.color,
-                val: cat.val,
-                isCategory: true,
-                info: `Category Node`
-            });
-            links.push({
-                source: treeData.id,
-                target: cat.id,
-                color: cat.color
-            });
+            nodes.push({ id: cat.id, name: cat.label, color: cat.color, val: cat.val, isCategory: true, info: 'Risk Category' });
+            links.push({ source: treeData.id, target: cat.id, color: cat.color });
 
-            if (cat.leaves && Array.isArray(cat.leaves)) {
-                cat.leaves.forEach(leaf => {
-                    nodes.push({
-                        id: leaf.id,
-                        name: leaf.label,
-                        color: leaf.color,
-                        val: leaf.val,
-                        isLeaf: true,
-                        info: `Risk Score: ${leaf.risk} | F:${leaf.fatal} M:${leaf.major} m:${leaf.minor}`
-                    });
-                    links.push({
-                        source: cat.id,
-                        target: leaf.id,
-                        color: leaf.color
-                    });
+            (cat.leaves || []).forEach(leaf => {
+                nodes.push({
+                    id: leaf.id, name: leaf.label, color: leaf.color, val: leaf.val,
+                    isLeaf: true, info: `Risk:${leaf.risk} | F:${leaf.fatal||0} M:${leaf.major||0} m:${leaf.minor||0}`
                 });
-            }
+                links.push({ source: cat.id, target: leaf.id, color: `${leaf.color}99` });
+            });
         });
 
-        // Ensure unique nodes by ID to prevent ForceGraph crash
-        const uniqueNodesConfig = Array.from(new Map(nodes.map(n => [n.id, n])).values());
-        
-        return { nodes: uniqueNodesConfig, links };
+        const uniqueNodes = Array.from(new Map(nodes.map(n => [n.id, n])).values());
+        return { nodes: uniqueNodes, links };
     }, [treeData]);
 
-    const handleNodeClick = (node) => {
+    const handleNodeClick = node => {
         if (!graphRef.current) return;
-        const distance = 80;
+        const distance  = 80;
         const distRatio = 1 + distance / Math.max(Math.hypot(node.x, node.y, node.z), 1);
-
         graphRef.current.cameraPosition(
             { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
-            node, 
-            2000 // ms transition duration
+            node, 1500
         );
     };
 
     const handleRecenter = () => {
         if (!graphRef.current) return;
-        graphRef.current.cameraPosition(
-            { x: 0, y: 0, z: 400 }, 
-            { x: 0, y: 0, z: 0 }, 
-            2000
-        );
+        graphRef.current.cameraPosition({ x: 0, y: 0, z: 550 }, { x: 0, y: 0, z: 0 }, 1500);
     };
 
     return (
         <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing font-outfit relative">
-            <button 
+            <button
                 onClick={handleRecenter}
                 className="absolute bottom-6 right-6 z-50 bg-slate-900/80 hover:bg-emerald-500/20 border border-slate-700 hover:border-emerald-500/50 text-white p-3 rounded-xl shadow-xl backdrop-blur-md transition-all group"
                 title="Recenter Tree"
             >
                 <LocateFixed size={20} className="text-slate-400 group-hover:text-emerald-400" />
             </button>
+
             {dimensions.width > 0 && (
                 <ForceGraph3D
                     ref={graphRef}
                     width={dimensions.width}
                     height={dimensions.height}
                     graphData={graphData}
-                    dagMode="td"
-                    dagLevelDistance={80}
-                    nodeRelSize={4}
+                    dagMode="radialout"
+                    dagLevelDistance={130}
+                    nodeRelSize={5}
+                    nodeOpacity={0.95}
                     nodeColor="color"
                     linkColor="color"
-                    linkOpacity={0.4}
-                    linkWidth={1.5}
+                    linkOpacity={0.5}
+                    linkWidth={1.8}
                     backgroundColor="#020202"
                     nodeThreeObjectExtend={true}
                     nodeThreeObject={node => {
-                        const sprite = createTextSprite(node.name, node.color, 0.4);
-                        sprite.position.y = -6; // offset slightly below
+                        const scale = node.isRoot ? 1.2 : node.isCategory ? 0.85 : 0.55;
+                        const sprite = createTextSprite(node.name, node.color, scale);
+                        sprite.position.y = node.isRoot ? -18 : node.isCategory ? -14 : -10;
                         return sprite;
                     }}
                     nodeLabel={node => `
-                        <div style="background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; font-family: 'Outfit', sans-serif;">
-                            <strong style="color: ${node.color}; display: block; margin-bottom: 4px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">${node.name}</strong>
-                            <span style="color: #fff; font-size: 11px;">${node.info}</span>
-                            <span style="color: #64748b; font-size: 9px; display: block; margin-top: 4px;">Click to focus</span>
+                        <div style="background:rgba(15,23,42,0.95);border:1px solid rgba(255,255,255,0.12);padding:10px 14px;border-radius:10px;font-family:'Outfit',sans-serif;max-width:200px;">
+                            <strong style="color:${node.color};display:block;margin-bottom:4px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">${node.name}</strong>
+                            <span style="color:#cbd5e1;font-size:11px;">${node.info}</span>
+                            <span style="color:#475569;font-size:9px;display:block;margin-top:4px;">Click to focus</span>
                         </div>
                     `}
                     onNodeClick={handleNodeClick}
-                    onNodeDragEnd={node => {
-                        node.fx = node.x;
-                        node.fy = node.y;
-                        node.fz = node.z;
-                    }}
+                    onNodeDragEnd={node => { node.fx = node.x; node.fy = node.y; node.fz = node.z; }}
+                    cooldownTicks={200}
+                    warmupTicks={50}
                 />
             )}
         </div>
@@ -255,53 +199,67 @@ function TreeCanvas({ treeData }) {
 
 /**
  * Main ZoneTree3D component.
- * Shows city selection first, then renders the 3D N-ary tree.
  */
 const ZoneTree3D = ({ blackspots: initialBlackspots = [] }) => {
-    const [step, setStep]       = useState('select'); // 'select' | 'tree'
-    const [city, setCity]       = useState(null);
-    const [dropOpen, setDropOpen] = useState(false);
+    const [step, setStep]           = useState('select');
+    const [city, setCity]           = useState(CITIES[0]);
+    const [dropOpen, setDropOpen]   = useState(false);
     const [allBlackspots, setAllBlackspots] = useState(initialBlackspots);
+    const [loading, setLoading]     = useState(false);
 
+    const fetchCityBlackspots = async (selectedCity) => {
+        setLoading(true);
+        try {
+            const res  = await fetch(selectedCity.endpoint);
+            const data = await res.json();
+            const spots = data.blackspots || data || [];
+            if (spots.length > 0) setAllBlackspots(spots);
+        } catch (err) {
+            console.error('Failed to fetch blackspots for', selectedCity.label, err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch blackspots on mount with the default city
     useEffect(() => {
-        // Fetch ALL blackspots in the city, ensuring the N-ary tree shows everything,
-        // rather than just the subset that happen to be along the user's computed route.
-        fetch('http://localhost:5000/api/blackspots')
-            .then(res => res.json())
-            .then(data => {
-                // Determine format of blackspots response
-                const spots = data.blackspots || data || [];
-                if (spots.length > 0) {
-                    setAllBlackspots(spots);
-                }
-            })
-            .catch(err => console.error("Failed to fetch full city blackspots", err));
+        fetchCityBlackspots(CITIES[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const selectedCity = city || CITIES[0];
-    const treeData = buildTreeData(allBlackspots, selectedCity.label);
+    const handleCityChange = (c) => {
+        setCity(c);
+        setDropOpen(false);
+        fetchCityBlackspots(c);
+    };
 
-    // Legend
+    const treeData = useMemo(() => buildTreeData(allBlackspots, city.label), [allBlackspots, city]);
+
     const LEGEND = [
-        { color: '#F43F5E', label: 'High Risk', sub: 'Fatal accidents' },
-        { color: '#F59E0B', label: 'Medium Risk', sub: 'Major accidents' },
-        { color: '#22C55E', label: 'Low Risk', sub: 'Minor accidents' },
+        { color: '#F43F5E', label: 'High Risk',   sub: 'Fatal accidents' },
+        { color: '#F59E0B', label: 'Medium Risk',  sub: 'Major accidents' },
+        { color: '#22C55E', label: 'Low Risk',     sub: 'Minor accidents' },
     ];
+
+    const high   = allBlackspots.filter(b => (b.fatal || 0) > 0).length;
+    const medium = allBlackspots.filter(b => (b.fatal || 0) === 0 && (b.major || 0) > 0).length;
+    const low    = allBlackspots.filter(b => (b.fatal || 0) === 0 && (b.major || 0) === 0).length;
+    const counts = [high, medium, low];
 
     if (step === 'select') {
         return (
             <motion.div
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="w-full h-full flex flex-col items-center justify-center gap-8 px-12 bg-[#020202]"
+                className="w-full h-full flex flex-col items-center justify-center gap-6 px-10 bg-[#020202]"
             >
                 {/* Header */}
                 <div className="text-center">
-                    <div className="w-14 h-14 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-5">
+                    <div className="w-14 h-14 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
                         <MapPin size={24} className="text-emerald-400" />
                     </div>
-                    <h2 className="text-white font-black uppercase tracking-[0.3em] text-sm mb-2">Select City</h2>
-                    <p className="text-white/30 text-[11px] tracking-wide">Choose a city to generate its accident risk tree</p>
+                    <h2 className="text-white font-black uppercase tracking-[0.3em] text-sm mb-1">Select City Zone</h2>
+                    <p className="text-white/30 text-[10px] tracking-wide">Choose a zone to generate its accident risk N-ary tree</p>
                 </div>
 
                 {/* City Dropdown */}
@@ -310,42 +268,40 @@ const ZoneTree3D = ({ blackspots: initialBlackspots = [] }) => {
                         onClick={() => setDropOpen(v => !v)}
                         className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/40 text-white text-sm font-bold transition-all"
                     >
-                        <span>{selectedCity.label}</span>
+                        <span>{city.label}</span>
                         <ChevronDown size={16} className={`text-white/40 transition-transform ${dropOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     <AnimatePresence>
-                    {dropOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            className="absolute top-full mt-2 w-full bg-slate-900 border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl"
-                        >
-                            {CITIES.map(c => (
-                                <button
-                                    key={c.id}
-                                    onClick={() => { setCity(c); setDropOpen(false); }}
-                                    className={`w-full flex flex-col px-5 py-3 hover:bg-emerald-500/10 transition-colors text-left ${city?.id === c.id ? 'bg-emerald-500/5' : ''}`}
-                                >
-                                    <span className="text-white text-sm font-bold">{c.label}</span>
-                                    <span className="text-white/30 text-[10px]">{c.subtitle}</span>
-                                </button>
-                            ))}
-                        </motion.div>
-                    )}
+                        {dropOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -6 }}
+                                className="absolute top-full mt-2 w-full bg-slate-900 border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl"
+                            >
+                                {CITIES.map(c => (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => handleCityChange(c)}
+                                        className={`w-full flex flex-col px-5 py-3 hover:bg-emerald-500/10 transition-colors text-left ${city?.id === c.id ? 'bg-emerald-500/5' : ''}`}
+                                    >
+                                        <span className="text-white text-sm font-bold">{c.label}</span>
+                                        <span className="text-white/30 text-[10px]">{c.subtitle}</span>
+                                    </button>
+                                ))}
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
 
-                {/* Info row: blackspot count */}
-                <div className="flex gap-4">
-                    {LEGEND.map(l => (
-                        <div key={l.label} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/3 border border-white/5">
-                            <div className="w-2 h-2 rounded-full" style={{ background: l.color, boxShadow: `0 0 8px ${l.color}60` }} />
-                            <div>
-                                <p className="text-[10px] font-black text-white/70 uppercase tracking-widest">{l.label}</p>
-                                <p className="text-[9px] text-white/30">{l.sub}</p>
-                            </div>
+                {/* Stats */}
+                <div className="flex gap-3">
+                    {LEGEND.map((l, i) => (
+                        <div key={l.label} className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl bg-white/3 border border-white/5">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ background: l.color, boxShadow: `0 0 10px ${l.color}80` }} />
+                            <p className="text-[9px] font-black text-white/70 uppercase tracking-widest">{l.label}</p>
+                            <p className="text-xl font-black font-outfit" style={{ color: l.color }}>{loading ? '—' : counts[i]}</p>
                         </div>
                     ))}
                 </div>
@@ -355,10 +311,10 @@ const ZoneTree3D = ({ blackspots: initialBlackspots = [] }) => {
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setStep('tree')}
-                    className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-widest text-[11px] transition-colors shadow-[0_0_24px_rgba(16,185,129,0.3)]"
+                    disabled={loading}
+                    className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-widest text-[11px] transition-colors shadow-[0_0_24px_rgba(16,185,129,0.3)] disabled:opacity-60"
                 >
-                    Generate Tree
-                    <ArrowRight size={16} />
+                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <>Generate Tree <ArrowRight size={16} /></>}
                 </motion.button>
             </motion.div>
         );
@@ -371,17 +327,17 @@ const ZoneTree3D = ({ blackspots: initialBlackspots = [] }) => {
             animate={{ opacity: 1 }}
             className="w-full h-full flex flex-col bg-[#020202]"
         >
-            {/* Sub-header: city + back */}
+            {/* Sub-header */}
             <div className="flex items-center justify-between px-6 py-3 border-b border-white/5">
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">{selectedCity.label} · Risk Hierarchy</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">{city.label} · Risk Hierarchy · {allBlackspots.length} nodes</span>
                 </div>
                 <button
                     onClick={() => setStep('select')}
                     className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white/60 transition-colors"
                 >
-                    ← Change City
+                    ← Change Zone
                 </button>
             </div>
 
@@ -389,7 +345,7 @@ const ZoneTree3D = ({ blackspots: initialBlackspots = [] }) => {
             <div className="flex-1 w-full relative overflow-hidden">
                 <TreeCanvas treeData={treeData} />
 
-                {/* Floating legend overlay */}
+                {/* Floating legend */}
                 <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 pointer-events-none">
                     {LEGEND.map(l => (
                         <div key={l.label} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/5">
@@ -399,9 +355,9 @@ const ZoneTree3D = ({ blackspots: initialBlackspots = [] }) => {
                     ))}
                 </div>
 
-                {/* Node count */}
+                {/* Help text */}
                 <div className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/5">
-                    <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">{(allBlackspots || []).length} Blackspots</span>
+                    <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Drag · Orbit · Click to Focus</span>
                 </div>
             </div>
         </motion.div>

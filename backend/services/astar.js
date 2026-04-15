@@ -157,38 +157,82 @@ function buildGraph(nodes, roads, accidents) {
 // WEIGHT & HEURISTIC FUNCTIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Edge weight function — controls what A* optimises.
+ *
+ * Vehicle multipliers model real constraints:
+ *   walk  — strongly penalises long edges (pedestrians avoid long straight roads)
+ *   bike  — mild penalty for long edges (slower on highways)
+ *   car   — prefers longer straight segments (fewer turns = faster)
+ *
+ * Mode weights:
+ *   shortest  — pure distance (ignore risk)
+ *   safest    — pure risk score; distance only as tiny tiebreaker
+ *   balanced  — normalised sum: risk contributes ~40%, distance ~60%
+ */
 function edgeWeight(edge, mode, vehicle) {
     const { distance, risk } = edge;
-    
-    // Slight penalties to break ties and simulate vehicle road preferences
-    let distMultiplier = 1.0;
-    const isLongEdge = distance > 1.0; 
+    const d = Math.max(distance, 0.01); // guard against 0-distance edges
 
+    // Vehicle-specific distance multipliers
+    let distMult = 1.0;
     if (vehicle === 'walk') {
-        distMultiplier = isLongEdge ? 2.5 : 1.0; // pedestrian detours long stretches
+        // Walkers strongly prefer short segments; penalty increases with length
+        distMult = d > 2.0 ? 4.0 : d > 0.5 ? 1.8 : 1.0;
     } else if (vehicle === 'bike') {
-        distMultiplier = isLongEdge ? 1.5 : 0.9; // bikes prefer shorter granular paths
-    } else if (vehicle === 'car') {
-        distMultiplier = isLongEdge ? 0.8 : 1.2; // cars prefer straight, long segments
+        // Bikes tolerate medium segments but avoid highways (long edges)
+        distMult = d > 3.0 ? 2.0 : d > 1.0 ? 1.2 : 0.9;
+    } else {
+        // Car — prefers efficient long segments; small multiplier for highway-style edges
+        distMult = d > 1.0 ? 0.85 : 1.15;
     }
 
-    const modifiedDist = distance * distMultiplier;
+    const effectiveDist = d * distMult;
+    const effectiveRisk = Math.max(risk, 0);
 
     switch (mode) {
-        case 'shortest': return modifiedDist;
-        case 'safest':   return (risk > 0 ? risk : 0.1) + 0.001 * modifiedDist;
-        case 'balanced': return (modifiedDist / 5) + (risk / 10);
-        default:         return modifiedDist;
+        case 'shortest':
+            // Minimise distance; add tiny risk tiebreaker so equal-distance paths prefer safer roads
+            return effectiveDist + effectiveRisk * 0.0005;
+
+        case 'safest':
+            // Minimise risk; distance is only a minor tiebreaker (0.001 weight)
+            return (effectiveRisk > 0 ? effectiveRisk : 0.05) + effectiveDist * 0.001;
+
+        case 'balanced': {
+            // Normalise both dimensions into comparable ranges then blend 60/40
+            // Typical distance 0.1–5 km, typical risk 0–20 pts per edge
+            const normDist = effectiveDist / 5.0;  // scale to ~[0,1] range
+            const normRisk = effectiveRisk / 20.0; // scale to ~[0,1] range
+            return normDist * 0.6 + normRisk * 0.4;
+        }
+
+        default:
+            return effectiveDist;
     }
 }
 
+/**
+ * A* heuristic — must be ADMISSIBLE (never over-estimate the true cost).
+ * Uses haversine straight-line distance scaled to match the cost function.
+ */
 function heuristic(node, goal, mode) {
     const dist = haversine(node.latitude, node.longitude, goal.latitude, goal.longitude);
     switch (mode) {
-        case 'shortest': return dist;
-        case 'safest':   return 0;            
-        case 'balanced': return dist / 5;     
-        default:         return dist;
+        case 'shortest':
+            // Lower bound: straight-line distance (always ≤ road distance)
+            return dist * 0.85; // slight deflation to keep admissible with vehicle mult
+
+        case 'safest':
+            // Risk heuristic = 0 (we have no lower bound on future risk → Dijkstra behaviour)
+            return 0;
+
+        case 'balanced':
+            // Scale the haversine to match the normalised distance component
+            return (dist / 5.0) * 0.6;
+
+        default:
+            return dist;
     }
 }
 
