@@ -94,7 +94,10 @@ const MapView = () => {
     const mapRouteCoords = useMemo(
         () => {
             if (!routeResult?.geometry?.length) return [];
-            return routeResult.geometry.map(([lat, lng]) => [parseFloat(lng), parseFloat(lat)]);
+            const safeCoords = routeResult.geometry
+                .map(([lat, lng]) => [parseFloat(lng), parseFloat(lat)])
+                .filter(([lng, lat]) => !isNaN(lng) && !isNaN(lat));
+            return safeCoords.length >= 2 ? safeCoords : [];
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [geometryKey]
@@ -104,11 +107,17 @@ const MapView = () => {
     const secondaryRoutes = useMemo(() => {
         return ['safest', 'shortest', 'balanced']
             .filter(m => m !== mode && allRoutes[m]?.geometry?.length >= 2)
-            .map(m => ({
-                id: m,
-                style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
-                coords: allRoutes[m].geometry.map(([lat, lng]) => [parseFloat(lng), parseFloat(lat)]),
-            }));
+            .map(m => {
+                const coords = allRoutes[m].geometry
+                    .map(([lat, lng]) => [parseFloat(lng), parseFloat(lat)])
+                    .filter(([lng, lat]) => !isNaN(lng) && !isNaN(lat));
+                return {
+                    id: m,
+                    style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
+                    coords: coords.length >= 2 ? coords : [],
+                };
+            })
+            .filter(r => r.coords.length >= 2);
     }, [mode, allRoutes]);
 
     return (
