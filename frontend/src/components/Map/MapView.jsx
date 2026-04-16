@@ -94,7 +94,7 @@ const MapView = () => {
     const mapRouteCoords = useMemo(
         () => {
             if (!routeResult?.geometry?.length) return [];
-            return routeResult.geometry.map(([lat, lng]) => [lng, lat]);
+            return routeResult.geometry.map(([lat, lng]) => [parseFloat(lng), parseFloat(lat)]);
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [geometryKey]
@@ -107,7 +107,7 @@ const MapView = () => {
             .map(m => ({
                 id: m,
                 style: ROUTE_STYLES[m] || ROUTE_STYLES.safest,
-                coords: allRoutes[m].geometry.map(([lat, lng]) => [lng, lat]),
+                coords: allRoutes[m].geometry.map(([lat, lng]) => [parseFloat(lng), parseFloat(lat)]),
             }));
     }, [mode, allRoutes]);
 
@@ -193,6 +193,7 @@ const MapView = () => {
                             color={PRIMARY_COLOR}
                             width={8}
                             opacity={0.95}
+                            dashArray={routeStyle.dashArray}
                             interactive={true}
                             onMouseEnter={(e) => {
                                 if (e?.lngLat) {
