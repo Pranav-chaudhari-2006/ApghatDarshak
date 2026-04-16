@@ -53,7 +53,7 @@ const FitBounds = ({ geometry }) => {
     const lastGeomRef = useRef(null);
 
     useEffect(() => {
-        if (!isLoaded || !map || !geometry?.length > 1) return;
+        if (!isLoaded || !map || !geometry || geometry.length < 2) return;
         // Only re-fit if the geometry has genuinely changed
         if (lastGeomRef.current === geometry) return;
         lastGeomRef.current = geometry;
@@ -61,9 +61,14 @@ const FitBounds = ({ geometry }) => {
         // geometry[i] = [lat, lng]. fitBounds needs [[minLng, minLat], [maxLng, maxLat]]
         const lngs = geometry.map(([, lng]) => lng);
         const lats = geometry.map(([lat]) => lat);
+        const minLng = lngs.reduce((min, val) => Math.min(min, val), Infinity);
+        const maxLng = lngs.reduce((max, val) => Math.max(max, val), -Infinity);
+        const minLat = lats.reduce((min, val) => Math.min(min, val), Infinity);
+        const maxLat = lats.reduce((max, val) => Math.max(max, val), -Infinity);
+
         const bounds = [
-            [Math.min(...lngs), Math.min(...lats)],
-            [Math.max(...lngs), Math.max(...lats)],
+            [minLng, minLat],
+            [maxLng, maxLat],
         ];
         map.fitBounds(bounds, { padding: 80, duration: 1200, maxZoom: 16 });
     }, [geometry, map, isLoaded]);

@@ -969,7 +969,7 @@ function MapRoute({
             data: {
                 type: "Feature",
                 properties: {},
-                geometry: { type: "LineString", coordinates: coordsRef.current.length >= 2 ? coordsRef.current : [] },
+                geometry: { type: "LineString", coordinates: coordsRef.current.length >= 2 ? coordsRef.current : [[0, 0], [0, 0]] },
             },
         });
 
